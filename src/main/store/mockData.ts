@@ -30,7 +30,8 @@ export const MOCK_MACROS: Macro[] = [
   {
     id: 'macro-open-browser',
     name: 'Open Browser',
-    description: 'Launches dev environment browsers with pre-authenticated sessions and clear cache.',
+    description:
+      'Launches dev environment browsers with pre-authenticated sessions and clear cache.',
     shortcut: 'ALT+B',
     isActive: false,
     status: 'IDLE',

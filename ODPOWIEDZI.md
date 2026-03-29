@@ -3,6 +3,7 @@
 ## 1. Wizja i Dashboard (Analiza 1:1)
 
 Dashboard z obrazka charakteryzuje się nowoczesnym, ciemnym designem z wyraźnymi akcentami (pomarańczowy i niebieski). Zbudwany jest z następujących sfer:
+
 - **Sidebar (lewy)**: Nawigacja pionowa (Strona Główna, Ulubione, Ustawienia, Baza).
 - **Header (góra)**: Nazwa "Dashboard", mały wskaźnik statusu "System Optimal", dzwonek powiadomień, pomoc, przycisk CTA "New Macro".
 - **Statystyki (Top)**: Czyste liczniki liczbowe (Total Automations, Time Saved, Success Rate, Active Now) z użyciem dużej i cienkiej typografii (prawdopodobnie Inter/Roboto).
@@ -16,7 +17,7 @@ Dashboard z obrazka charakteryzuje się nowoczesnym, ciemnym designem z wyraźny
 
 ## 2. Proponowany Stack Technologiczny (Modern Stack)
 
-- **Frontend / Interfejs**: 
+- **Frontend / Interfejs**:
   - `react`, `react-dom`
   - `tailwindcss` – idealny wybór do równego i perfekcyjnego pixel-perfect gridu i dark theme.
   - `lucide-react` – idealne powielenie estetyki ikonek z dashboardu (cienkie, proste kreski).
@@ -38,7 +39,7 @@ Ponieważ Blockly operuje domyślnie na XML, a współcześnie również na czys
 1. **Podejście Systemowe (Lokalne Pliki .json)**:
    - Przestrzeń magazynowa np. w `app.getPath('userData')/macros/`.
    - Każde makro to osobny plik (np. `copy-paste-pro.json`), zawierający metadata (klawisze, nazwa, status) oraz wygenerowane bloki programu.
-   - *Zalety:* Możesz łatwo dodać opcję "Eksportuj/Importuj", wręczając komuś mailem po prostu jeden plik.
+   - _Zalety:_ Możesz łatwo dodać opcję "Eksportuj/Importuj", wręczając komuś mailem po prostu jeden plik.
 
 2. **Połączenie z `electron-store`**:
    - Skrypty trzymamy w JSON, a globalny słownik skrótów klawiszowych (wraz z referencjami, np. `{"CTRL+SHIFT+C" : "macros/copy-paste-pro.json"}`) ładujemy przy starcie z `electron-store` prosto z pamięci komputera. Gwarantuje to najszybszą pętlę ładowania aplikacji (System Optimal).
@@ -49,7 +50,6 @@ Pisząc Keybrix w architekturze Electron + nut.js, kluczowe stają się 3 domeny
 
 - **Jak oddzielić widok od logiki, by dashboard działał super gładko?**
   - **Preload.ts API (Context Bridge):** Dashboard (UI) widzi tylko abstrakcyjne API "zleceń" (np. `window.api.runMacro(id)`). Sam `nut.js` jest ukryty pod spodem w systemie głównym Main Process. Nigdy nie importuj `nut.js` po stronie Renderera.
-  
 - **W jaki sposób nasłuchiwać skrótów (jak `ALT+B`), kiedy program jest w tle?**
   - **Node.js layer:** Wykorzystamy moduł `globalShortcut` z Electrona po stronie `main/index.ts`. Nasłuchuje on skróty w systemie, a jeżeli użytkownik wykona skrót klawiszowy, to odpala powiązany obiekt generatora i ewentualnie odświeża interfejs logów wysyłając IPC event typu `macro:triggered`.
 
@@ -67,7 +67,7 @@ Skupmy się na bardzo czytelnym podziale "Feature-Based" na frontnedzie.
 src/
 ├── main/                 # Node.js + natywne okna (Systemowe)
 │   ├── index.ts          # Root
-│   ├── keyboard/         # Rejestrator skrótów `globalShortcut` 
+│   ├── keyboard/         # Rejestrator skrótów `globalShortcut`
 │   ├── macro-runner/     # Zespół parsowania JSON na komendy `nut.js`
 │   └── store/            # Kontroler bazy lokalnej (electron-store)
 ├── preload/              # Most IPC
