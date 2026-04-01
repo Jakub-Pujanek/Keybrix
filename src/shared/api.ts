@@ -53,6 +53,38 @@ export const MacroStatusChangeEventSchema = z.object({
 })
 export type MacroStatusChangeEvent = z.infer<typeof MacroStatusChangeEventSchema>
 
+export const EditorBlockTypeSchema = z.enum([
+  'START',
+  'PRESS_KEY',
+  'WAIT',
+  'MOUSE_CLICK',
+  'TYPE_TEXT',
+  'REPEAT'
+])
+export type EditorBlockType = z.infer<typeof EditorBlockTypeSchema>
+
+export const EditorNodeSchema = z.object({
+  id: z.string().min(1),
+  type: EditorBlockTypeSchema,
+  x: z.number(),
+  y: z.number(),
+  nextId: z.string().min(1).nullable().optional(),
+  payload: z.record(z.string(), z.unknown())
+})
+export type EditorNode = z.infer<typeof EditorNodeSchema>
+
+export const EditorDocumentSchema = z.object({
+  nodes: z.array(EditorNodeSchema),
+  zoom: z.number().min(0.5).max(2)
+})
+export type EditorDocument = z.infer<typeof EditorDocumentSchema>
+
+export const RecordShortcutInputSchema = z.object({
+  keys: z.string().min(1),
+  source: z.enum(['topbar', 'start-block'])
+})
+export type RecordShortcutInput = z.infer<typeof RecordShortcutInputSchema>
+
 export const IPC_CHANNELS = {
   macros: {
     getAll: 'macros:get-all',
@@ -72,6 +104,9 @@ export const IPC_CHANNELS = {
   system: {
     statusUpdate: 'system:status-update',
     macroStatusChanged: 'system:macro-status-changed'
+  },
+  keyboard: {
+    recordShortcut: 'keyboard:record-shortcut'
   }
 } as const
 
@@ -94,5 +129,8 @@ export interface KeybrixApi {
   system: {
     onStatusUpdate: (callback: (status: SystemStatus) => void) => () => void
     onMacroStatusChange: (callback: (id: string, newStatus: MacroStatus) => void) => () => void
+  }
+  keyboard: {
+    recordShortcut: (input: RecordShortcutInput) => Promise<boolean>
   }
 }

@@ -5,6 +5,7 @@ import {
   type DashboardStats,
   DashboardStatsSchema,
   MacroSchema,
+  RecordShortcutInputSchema,
   SaveMacroInputSchema,
   SystemStatusSchema,
   ToggleMacroInputSchema,
@@ -235,6 +236,23 @@ const api: KeybrixApi = {
         macroStatusListeners.delete(callback)
         cleanupIfUnused()
       }
+    }
+  },
+  keyboard: {
+    recordShortcut: async (input) => {
+      const parsed = RecordShortcutInputSchema.parse(input)
+
+      const shortcutLog = ActivityLogSchema.parse({
+        id: `log-shortcut-${Date.now()}`,
+        timestamp: timestamp(),
+        level: 'INFO',
+        message: `Shortcut recorded (${parsed.source}): ${parsed.keys}`
+      })
+
+      logsState.unshift(shortcutLog)
+      emitLog(shortcutLog)
+
+      return true
     }
   }
 }

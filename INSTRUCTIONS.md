@@ -1,159 +1,119 @@
 # INSTRUCTIONS for AI contributors in Keybrix
 
-Ten plik ma być źródłem prawdy dla całego zespołu AI, żeby każda nowa zmiana w kodzie:
-- była zgodna z architekturą istniejącą w projekcie,
-- nie omijała żadnego ważnego kroku,
-- miała zawsze testy i działała z tym co już jest.
+Ten plik jest źródłem prawdy dla pracy AI w tym repo.
+Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa do utrzymania.
 
-## 1. Architektura + zakres
-a) `main` (Electron main process):
-   - Tylko tu jest core backend: okno, zdarzenia systemowe, IPC (zmienne w `IPC_CHANNELS`).
-   - Nie wycinaj istniejącej struktury `src/main/index.ts` (window, app lifecycle, preload).
-   - Nowy backendowy kod (np. z obsługą makr) łącz z IPC w `src/main/index.ts` i `src/preload/index.ts`.
-   - Jeśli dodajesz nowe kanały IPC, zaktualizuj również `src/shared/api.ts` + `dst preload api`.
+## 1. Aktualna architektura projektu
 
-b) `preload`:
-   - Kluczowy szkielet: exposeInMainWorld('electron', electronAPI), exposeInMainWorld('api', api).
-   - Brakujący endpoint: dopisz do `api` w `src/preload/index.ts`.
-   - Każda metoda musi wewnętrznie walidować (z `zod` lub manual) jeśli ma wejście.
+### main (Electron main process)
+- Plik wejściowy: src/main/index.ts.
+- Odpowiada za lifecycle aplikacji i okno.
+- Aktualnie nie ma pełnej warstwy backend IPC dla dashboardu.
 
-c) `renderer` (React):
-   - Wszystkie nowe komponenty w `src/renderer/src/` w folderach `features/*` (dashboard/editor/settings) lub `components/*`.
-   - Używaj modułowego CSS tylko przez Tailwind utility-classes.
-   - global / base styles tylko w `src/renderer/src/assets/main.css` + `tailwind.config.js`.
+### preload
+- Plik: src/preload/index.ts.
+- Wystawia window.electron oraz window.api.
+- window.api jest obecnie oparty o mock bridge:
+  - czyta dane z src/main/store/mockData.ts,
+  - waliduje payloady i dane wyjściowe przez schemy z src/shared/api.ts,
+  - symuluje realtime przez onNewLog, onStatusUpdate, onMacroStatusChange,
+  - pilnuje cleanup timerow/listenerow.
 
-## 2. UI: zawsze Tailwind
-- Nie importuj klasycznych plików CSS oprócz istniejącego `src/renderer/src/assets/main.css`.
-- Każdy nowy visual element ma używać `className` z Tailwind. Przykład:
-  `className="rounded-lg p-4 bg-slate-800 text-slate-100 shadow-lg"
-`.
-- Zawieraj responsywność: `sm:`, `md:`, `lg:` etc, jeśli konstrukcja mogłaby się złamać.
-- Nie dopuszczaj raw `style={{}}` chyba, że jest to absolutnie niezbędne (wtedy dodaj komentarz "only non-Tailwind fallback").
+### shared
+- Plik kontraktu: src/shared/api.ts.
+- Zawiera schemy zod, typy oraz KeybrixApi i IPC_CHANNELS.
+- Kazda nowa metoda API ma byc najpierw opisana tutaj.
 
-## 3. API i typy
-- Centralna definicja typów: `src/shared/api.ts`.
-- Nowe obiekty/zasoby zawsze dodaj w tym pliku jako `zod` schema + `type`.
-- Nie pomijaj walidacji payloadu w `src/main` i `src/preload`.
-- Nowe kanały IPC:
-  - dopisz w `IPC_CHANNELS`
-  - zaktualizuj `KeybrixApi` w `src/shared/api.ts`
-  - obsługę w `src/main/index.ts` (ipcMain.handle)
-  - wrapper w `src/preload/index.ts` (ipcRenderer.invoke lub on)
+### renderer (React + Tailwind)
+- Aktualna struktura:
+  - src/renderer/src/components/layout
+  - src/renderer/src/components/primitives
+  - src/renderer/src/components/composites
+  - src/renderer/src/components/screens
+  - src/renderer/src/store
+- Root:
+  - src/renderer/src/App.tsx
+  - src/renderer/src/main.tsx
+- Globalne style:
+  - src/renderer/src/assets/main.css
 
-## 4. Testy
-- Każdy nowy feature musi mieć testy:
-  - UI: `src/renderer/src/*.test.tsx` (React Testing Library)
-  - Backend: `src/main/**/*.test.ts` jeśli jest logika lub helper.
-- Jednostkowe testy dla zod -> walidacja inputu.
-- Domyślne pole wyboru: użyj `vitest` z plikiem `vitest.config.ts`.
-- Każdy dodany test ma być automatycznie wykonywalny skryptem:
-  - `pnpm run test -- --run`
-  - `pnpm run coverage`
+## 2. Zasady UI
+- Uzywaj Tailwind utility classes.
+- Nie dodawaj nowych globalnych plikow CSS.
+- Dopuszczalny global CSS to tylko src/renderer/src/assets/main.css.
+- Unikaj inline style. Jezeli naprawde konieczne, dodaj krotki komentarz uzasadniajacy.
+- Komponenty buduj warstwowo:
+  - primitives: najmniejsze elementy UI,
+  - composites: elementy zlozone,
+  - screens: kompozycja sekcji ekranu,
+  - layout: shell aplikacji (sidebar, header, kontener).
 
-## 5. Lint / format
-- Zawsze uruchom przed commitem:
-  - `pnpm run lint`
-  - `pnpm run format`
-- W nowych plikach stosuj zasady `eslint.config.mjs` i `.prettierrc.yaml`.
-- Dla `@ts-ignore`: wymagane co najmniej 3 znaki tekstu opisu:
-  `// @ts-ignore: Description...`
+## 3. API, typy i walidacja
+- Zmiany kontraktu zaczynaj od src/shared/api.ts.
+- Dla nowych danych:
+  - dodaj schema zod,
+  - dodaj type,
+  - zaktualizuj KeybrixApi,
+  - dopiero potem implementacja w preload/main.
+- Waliduj inputy metod mutujacych (save/toggle itd.).
+- Nie uzywaj any bez bardzo mocnego powodu.
 
-## 6. Nowe zależności i konfiguracje
-- Jeśli potrzebujesz nowej biblioteki, nim dodasz, potwierdź:
-  - czy jest konieczna i lekka;
-  - że nie ma „podwójnych” już istniejących.
-- Dla każdej nowej paczki twórz config:
-  - `tailwindcss`: `tailwind.config.js`, `postcss.config.cjs`, import w main CSS.
-  - `vitest`: `vitest.config.ts`, `src/setupTests.ts`, test w `src/renderer/src/*.test.tsx`.
-  - `eslint`: `eslint.config.mjs` (jeśli dodałeś pluginy).
-  - `prettier`: `.prettierrc.yaml` i `.prettierignore`.
+## 4. Store i przeplyw danych
+- Aktualne store'y renderer:
+  - app.store.ts,
+  - macro.store.ts,
+  - activity.store.ts,
+  - editor.store.ts,
+  - ui.store.ts.
+- Store czyta dane przez window.api.
+- Realtime subskrypcje musza miec cleanup zwracany z useEffect.
 
-## 7. Commit + review checklist
-- [ ] Kod działa lokalnie (`pnpm run dev` uruchamia okno bez błędów).
-- [ ] `pnpm run typecheck` -> zero błędów.
-- [ ] `pnpm run lint` -> zero błędów (`warn`->dopasowane ok).
-- [ ] `pnpm run test -- --run` -> 0 failures.
-- [ ] `pnpm run coverage` (przynajmniej 80% w nowych plikach).
-- [ ] `INSTRUCTIONS.md` pozostaje aktualny, nie pomija kluczowych kroków.
+## 5. Testy
+- Framework: Vitest + React Testing Library.
+- Setup: src/setupTests.ts.
+- Typy testowe: src/renderer/src/env.d.ts.
+- Test UI dashboardu: src/renderer/src/App.test.tsx.
+- Przy nowych feature'ach UI dodawaj testy renderowania i przeplywu danych.
+- Testy realtime nie powinny wisiec; preferuj jawne emitowanie callbackow zamiast kruchych timerow w testach.
 
-## 8. Małe itemy (nie można omijać)
-- `src/main` zamknij wszystkie `app.on('will-quit')` wyczyszczeniem.
-- `src/main` zamknij eventy wskaźnikiem “watcher cleanup”.
-- Unikaj `any` w kodzie, zawsze typuj.
-- W `src/shared/api.ts` bilans [schema + fallback].
-- W testach daj opis <i>nie docker/pusty</i> np. "should render configurable dashboard card".
-- Kiedy dodajesz nowy fragment UI, wrzuć screen-`data-testid` w `render` i testuj query.
+## 6. Lint, format, typecheck
+Uruchamiaj przed oddaniem zmian:
+- pnpm run typecheck
+- pnpm run lint
+- pnpm run test -- --run
 
-## 9. Konwencje nazewnictwa
-- `features/{dashboard,editor,settings}/...` i `components/{ui,layout,macro,terminal}/...`
-- `*View.tsx` dla ekranów, `*Card.tsx` dla paneli.
-- `useAppStore.ts` dla global store.
-- IPC kanały w `IPC_CHANNELS` camelCase (np. `macros:get-all`).
+Formatowanie:
+- pnpm run format
 
-## 10. Komunikacja między layers
-1. Renderer -> preload -> main via IPC.
-2. main -> renderer eventy przez `system` i `logs`.
-3. Nie pisz już bezpośrednio `window.api` w `main`.
-4. Jeśli dodajesz `broadcast`, użyj tej samej struktury co w `src/main/index.ts`.
+W projekcie aktywna jest zasada explicit-function-return-type, wiec funkcje komponentow i helperow typuj jawnie.
 
-## 11. Nie pomijaj (w szczegółach)
-- brak: metod lub propsów w API;
-- zła kolejność ładowania `useEffect` w React;
-- brak `cleanup` w event listenerach i `setInterval`;
-- błędne ścieżki importu (stosuj aliasy, gdy możesz);
-- brak `await` w async funkcjach (immediate return bez obsługi błędów);
-- mechanizm i18n (jeśli dodasz meta/tekst, minimalnie: `string` w `const`).
+## 7. Tailwind i PostCSS
+- Tailwind v4 jest skonfigurowany przez PostCSS plugin @tailwindcss/postcss.
+- Konfiguracje:
+  - tailwind.config.js
+  - postcss.config.cjs
+- Nie cofaj konfiguracji do starego wpisu tailwindcss jako pluginu PostCSS.
 
-## 12. Lista narzędzi (package.json)
-Poniżej wszystkie paczki z `package.json`, które AI powinno rozważać przy rozszerzaniu funkcjonalności.
-NIE POMIJAĆ żadnej.
+## 8. Konwencje nazw i lokalizacji
+- Ekrany: *Screen.tsx w components/screens.
+- Shell/layout: components/layout.
+- UI base: components/primitives.
+- UI zlozone: components/composites.
+- Store: src/renderer/src/store.
+- Kontrakt API i typy domenowe: src/shared/api.ts.
 
-- @electron-toolkit/preload
-- @electron-toolkit/utils
-- @nut-tree-fork/nut-js
-- blockly
-- electron-log
-- electron-store
-- framer-motion
-- lucide-react
-- react-blockly
-- zod
-- zustand
+## 9. Checklist przed PR/oddaniem
+- Kod kompiluje sie bez bledow typecheck.
+- Lint przechodzi.
+- Testy przechodza bez timeoutow i warningow act.
+- Zmiany sa spojne z aktualna struktura components/layout-primitives-composites-screens.
+- Przy zmianie API: shared -> preload -> renderer stores/components.
 
-- @electron-toolkit/eslint-config-prettier
-- @electron-toolkit/eslint-config-ts
-- @electron-toolkit/tsconfig
-- @testing-library/jest-dom
-- @testing-library/react
-- @types/node
-- @types/react
-- @types/react-dom
-- @vitejs/plugin-react
-- @vitest/ui
-- autoprefixer
-- c8
-- cross-env
-- electron
-- electron-builder
-- electron-vite
-- eslint
-- eslint-plugin-react
-- eslint-plugin-react-hooks
-- eslint-plugin-react-refresh
-- postcss
-- prettier
-- prettier-plugin-tailwindcss
-- react
-- react-dom
-- tailwindcss
-- typescript
-- vite
-- vitest
-
-Każda nowa funkcja powinna mieć uzasadnienie (komentarz w kodzie albo w PR), dlaczego potrzebuje użycia nowej biblioteki.
+## 10. Czego nie robic
+- Nie przebudowuj architektury folderow bez uzgodnienia.
+- Nie przenos logiki API poza shared/preload/main bez potrzeby.
+- Nie zostawiaj listenerow/timerow bez cleanup.
+- Nie dodawaj obejsc bez walidacji typow i testu.
 
 ---
-
-Zawsze: "najpierw architektura, potem wygląd, potem testy".
-
-Tak jak napisałeś: notoryczne pomijanie drobnych detali kończy się „rozpierdoleniem”; tu jest pełny checklist, więc każdy kontrybutor ma wskazówki krok-po-kroku i nie może pominąć.
+Najpierw architektura, potem wyglad, potem testy.
