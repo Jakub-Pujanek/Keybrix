@@ -26,7 +26,8 @@ const items: LibraryItem[] = [
   { label: 'Type Text', type: 'TYPE_TEXT', icon: TextCursorInput, group: 'INPUT / KEYS' },
   { label: 'Mouse Click', type: 'MOUSE_CLICK', icon: MousePointerClick, group: 'MOUSE ACTIONS' },
   { label: 'Wait (ms)', type: 'WAIT', icon: Filter, group: 'LOGIC & FLOW' },
-  { label: 'Repeat Loop', type: 'REPEAT', icon: Repeat2, group: 'LOGIC & FLOW' }
+  { label: 'Repeat Loop', type: 'REPEAT', icon: Repeat2, group: 'LOGIC & FLOW' },
+  { label: 'Infinite Loop', type: 'INFINITE_LOOP', icon: Repeat2, group: 'LOGIC & FLOW' }
 ]
 
 const groupOrder: LibraryItem['group'][] = [

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorBlockType, EditorNode } from '../../../../../shared/api'
 import ActionBlock from './ActionBlock'
 
@@ -19,9 +19,9 @@ type CanvasGridProps = {
   isDraggingBlocks: boolean
   onDropLibraryBlock: (type: EditorBlockType, x: number, y: number) => void
   selectedNodeIds: string[]
-  isRecordingStartShortcut: boolean
+  recordingShortcutNodeId: string | null
   pressedPreview: string
-  onStartShortcutRecording: () => void
+  onStartShortcutRecording: (nodeId: string, nodeType: EditorNode['type']) => void
   onCancelShortcutRecording: () => void
   onUpdatePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
 }
@@ -38,7 +38,7 @@ function CanvasGrid({
   isDraggingBlocks,
   onDropLibraryBlock,
   selectedNodeIds,
-  isRecordingStartShortcut,
+  recordingShortcutNodeId,
   pressedPreview,
   onStartShortcutRecording,
   onCancelShortcutRecording,
@@ -46,8 +46,8 @@ function CanvasGrid({
 }: CanvasGridProps): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [isPanningCanvas, setIsPanningCanvas] = useState(false)
-  const selectedNodeIdsSet = new Set(selectedNodeIds)
-  const draggingNodeIds = new Set(Object.keys(displayPositions))
+  const selectedNodeIdsSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds])
+  const draggingNodeIds = useMemo(() => new Set(Object.keys(displayPositions)), [displayPositions])
   const activePanPointerIdRef = useRef<number | null>(null)
   const hasInitializedCameraRef = useRef(false)
   const panStartRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(
@@ -55,8 +55,23 @@ function CanvasGrid({
   )
 
   const isEditorBlockType = (value: string): value is EditorBlockType => {
-    return ['START', 'PRESS_KEY', 'WAIT', 'MOUSE_CLICK', 'TYPE_TEXT', 'REPEAT'].includes(value)
+    return [
+      'START',
+      'PRESS_KEY',
+      'WAIT',
+      'MOUSE_CLICK',
+      'TYPE_TEXT',
+      'REPEAT',
+      'INFINITE_LOOP'
+    ].includes(value)
   }
+
+  const handleUpdatePayload = useCallback(
+    (nodeId: string, nextPayload: Record<string, unknown>) => {
+      onUpdatePayload(nodeId, nextPayload)
+    },
+    [onUpdatePayload]
+  )
 
   const clampCamera = useCallback(
     (nextX: number, nextY: number, nextZoom: number): { x: number; y: number } => {
@@ -277,13 +292,13 @@ function CanvasGrid({
               <ActionBlock
                 node={node}
                 isSelected={selectedNodeIdsSet.has(node.id)}
-                isRecordingShortcut={isRecordingStartShortcut && node.type === 'START'}
+                isRecordingShortcut={recordingShortcutNodeId === node.id}
                 pressedPreview={pressedPreview}
                 highlightTopNotch={snapPreviewChildId === node.id}
                 highlightBottomNotch={snapPreviewParentId === node.id}
                 onStartShortcutRecording={onStartShortcutRecording}
                 onCancelShortcutRecording={onCancelShortcutRecording}
-                onUpdatePayload={(nextPayload) => onUpdatePayload(node.id, nextPayload)}
+                onUpdatePayload={handleUpdatePayload}
               />
             </div>
           )
@@ -293,4 +308,4 @@ function CanvasGrid({
   )
 }
 
-export default CanvasGrid
+export default memo(CanvasGrid)

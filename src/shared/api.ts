@@ -59,7 +59,8 @@ export const EditorBlockTypeSchema = z.enum([
   'WAIT',
   'MOUSE_CLICK',
   'TYPE_TEXT',
-  'REPEAT'
+  'REPEAT',
+  'INFINITE_LOOP'
 ])
 export type EditorBlockType = z.infer<typeof EditorBlockTypeSchema>
 
@@ -81,7 +82,7 @@ export type EditorDocument = z.infer<typeof EditorDocumentSchema>
 
 export const RecordShortcutInputSchema = z.object({
   keys: z.string().min(1),
-  source: z.enum(['topbar', 'start-block'])
+  source: z.enum(['topbar', 'start-block', 'press-key-block'])
 })
 export type RecordShortcutInput = z.infer<typeof RecordShortcutInputSchema>
 

@@ -16,6 +16,7 @@ function EditorScreen(): React.JSX.Element {
   const shortcut = useEditorStore((state) => state.shortcut)
   const isRecordingShortcut = useEditorStore((state) => state.isRecordingShortcut)
   const recordingSource = useEditorStore((state) => state.recordingSource)
+  const recordingNodeId = useEditorStore((state) => state.recordingNodeId)
   const heldKeys = useEditorStore((state) => state.heldKeys)
 
   const loadEditorMacro = useEditorStore((state) => state.loadEditorMacro)
@@ -156,9 +157,16 @@ function EditorScreen(): React.JSX.Element {
               addNode(type, { x, y })
             }}
             selectedNodeIds={selectedNodeIds}
-            isRecordingStartShortcut={isRecordingShortcut && recordingSource === 'start-block'}
+            recordingShortcutNodeId={isRecordingShortcut ? recordingNodeId : null}
             pressedPreview={pressedPreview}
-            onStartShortcutRecording={() => startShortcutRecording('start-block')}
+            onStartShortcutRecording={(nodeId, nodeType) => {
+              if (nodeType === 'PRESS_KEY') {
+                startShortcutRecording('press-key-block', nodeId)
+                return
+              }
+
+              startShortcutRecording('start-block', nodeId)
+            }}
             onCancelShortcutRecording={cancelShortcutRecording}
             onUpdatePayload={updateNodePayload}
           />

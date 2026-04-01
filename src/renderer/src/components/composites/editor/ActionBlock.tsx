@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { GripVertical } from 'lucide-react'
 import type { EditorNode } from '../../../../../shared/api'
 import ShortcutRecorderInput from './ShortcutRecorderInput'
@@ -9,9 +10,9 @@ type ActionBlockProps = {
   pressedPreview: string
   highlightTopNotch: boolean
   highlightBottomNotch: boolean
-  onStartShortcutRecording: () => void
+  onStartShortcutRecording: (nodeId: string, nodeType: EditorNode['type']) => void
   onCancelShortcutRecording: () => void
-  onUpdatePayload: (nextPayload: Record<string, unknown>) => void
+  onUpdatePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
 }
 
 const colorByType: Record<EditorNode['type'], string> = {
@@ -20,7 +21,8 @@ const colorByType: Record<EditorNode['type'], string> = {
   WAIT: 'from-[#00a97b] to-[#0f9f70]',
   MOUSE_CLICK: 'from-[#f57a00] to-[#ef6f00]',
   TYPE_TEXT: 'from-[#2f6eff] to-[#3666d8]',
-  REPEAT: 'from-[#00a97b] to-[#0f9f70]'
+  REPEAT: 'from-[#00a97b] to-[#0f9f70]',
+  INFINITE_LOOP: 'from-[#00a97b] to-[#0f9f70]'
 }
 
 const numeric = (value: unknown, fallback: number): number => {
@@ -71,25 +73,25 @@ function ActionBlock({
             <p className="text-[22px] font-semibold tracking-tight">{label}</p>
           </div>
 
-          {node.type === 'START' ? (
+          {node.type === 'START' || node.type === 'PRESS_KEY' ? (
             <ShortcutRecorderInput
-              value={shortcut}
+              value={node.type === 'START' ? shortcut : keyToPress}
               isRecording={isRecordingShortcut}
               pressedPreview={pressedPreview}
-              onStart={onStartShortcutRecording}
+              onStart={() => onStartShortcutRecording(node.id, node.type)}
               onCancel={onCancelShortcutRecording}
             />
           ) : null}
         </div>
 
-        {node.type === 'PRESS_KEY' ? (
+        {node.type === 'PRESS_KEY' && !isRecordingShortcut ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               Key
             </label>
             <input
               value={keyToPress}
-              onChange={(event) => onUpdatePayload({ key: event.target.value })}
+              onChange={(event) => onUpdatePayload(node.id, { key: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-44 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder="np. CTRL + C"
@@ -104,7 +106,7 @@ function ActionBlock({
             </label>
             <input
               value={textToType}
-              onChange={(event) => onUpdatePayload({ text: event.target.value })}
+              onChange={(event) => onUpdatePayload(node.id, { text: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-full rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder="Wpisz tekst do wklepania"
@@ -121,7 +123,9 @@ function ActionBlock({
               type="number"
               min={0}
               value={waitMs}
-              onChange={(event) => onUpdatePayload({ durationMs: Number(event.target.value) || 0 })}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { durationMs: Number(event.target.value) || 0 })
+              }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-28 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -136,7 +140,7 @@ function ActionBlock({
             <input
               type="number"
               value={mouseX}
-              onChange={(event) => onUpdatePayload({ x: Number(event.target.value) || 0 })}
+              onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -146,13 +150,13 @@ function ActionBlock({
             <input
               type="number"
               value={mouseY}
-              onChange={(event) => onUpdatePayload({ y: Number(event.target.value) || 0 })}
+              onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <select
               value={mouseButton}
-              onChange={(event) => onUpdatePayload({ button: event.target.value })}
+              onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             >
@@ -173,11 +177,17 @@ function ActionBlock({
               min={1}
               value={repeatCount}
               onChange={(event) =>
-                onUpdatePayload({ count: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, { count: Math.max(1, Number(event.target.value) || 1) })
               }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-24 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             />
+          </div>
+        ) : null}
+
+        {node.type === 'INFINITE_LOOP' ? (
+          <div className="mt-3 text-xs font-semibold tracking-[0.08em] text-white/85 uppercase">
+            Runs forever
           </div>
         ) : null}
       </div>
@@ -185,4 +195,15 @@ function ActionBlock({
   )
 }
 
-export default ActionBlock
+const areEqual = (prev: ActionBlockProps, next: ActionBlockProps): boolean => {
+  return (
+    prev.node === next.node &&
+    prev.isSelected === next.isSelected &&
+    prev.isRecordingShortcut === next.isRecordingShortcut &&
+    prev.pressedPreview === next.pressedPreview &&
+    prev.highlightTopNotch === next.highlightTopNotch &&
+    prev.highlightBottomNotch === next.highlightBottomNotch
+  )
+}
+
+export default memo(ActionBlock, areEqual)

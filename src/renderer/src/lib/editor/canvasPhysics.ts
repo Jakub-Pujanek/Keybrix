@@ -4,6 +4,7 @@ const TOP_NOTCH_DEPTH = 11
 const BOTTOM_TAB_HEIGHT = 12
 const SNAP_THRESHOLD_X = 84
 const SNAP_THRESHOLD_Y = 32
+const SNAP_INDEX_CELL_SIZE = 220
 
 const BODY_HEIGHT_BY_TYPE: Record<EditorNode['type'], number> = {
   START: 68,
@@ -11,7 +12,8 @@ const BODY_HEIGHT_BY_TYPE: Record<EditorNode['type'], number> = {
   WAIT: 102,
   MOUSE_CLICK: 102,
   TYPE_TEXT: 102,
-  REPEAT: 102
+  REPEAT: 102,
+  INFINITE_LOOP: 102
 }
 
 export type SnapCandidate = {
@@ -25,6 +27,11 @@ type ConnectionBounds = {
   right: number
   top: number
   bottom: number
+}
+
+export type SnapSpatialIndex = {
+  cellSize: number
+  buckets: Map<string, EditorNode[]>
 }
 
 export const getBlockTotalHeight = (node: EditorNode): number => {
@@ -45,6 +52,62 @@ const getConnectionBounds = (parentNode: EditorNode): ConnectionBounds => {
     top: targetY - SNAP_THRESHOLD_Y,
     bottom: targetY + SNAP_THRESHOLD_Y
   }
+}
+
+const getCellKey = (x: number, y: number, cellSize: number): string => {
+  return `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`
+}
+
+export const buildSnapSpatialIndex = (
+  nodes: EditorNode[],
+  cellSize = SNAP_INDEX_CELL_SIZE
+): SnapSpatialIndex => {
+  const buckets = new Map<string, EditorNode[]>()
+
+  for (const node of nodes) {
+    const key = getCellKey(node.x, getConnectedChildY(node), cellSize)
+    const bucket = buckets.get(key)
+    if (!bucket) {
+      buckets.set(key, [node])
+      continue
+    }
+
+    bucket.push(node)
+  }
+
+  return {
+    cellSize,
+    buckets
+  }
+}
+
+const getSpatialCandidates = (
+  index: SnapSpatialIndex,
+  rawX: number,
+  rawY: number
+): EditorNode[] => {
+  const rangeX = Math.ceil(SNAP_THRESHOLD_X / index.cellSize)
+  const rangeY = Math.ceil(SNAP_THRESHOLD_Y / index.cellSize)
+  const centerCellX = Math.floor(rawX / index.cellSize)
+  const centerCellY = Math.floor(rawY / index.cellSize)
+
+  const seen = new Set<string>()
+  const out: EditorNode[] = []
+
+  for (let x = centerCellX - rangeX; x <= centerCellX + rangeX; x += 1) {
+    for (let y = centerCellY - rangeY; y <= centerCellY + rangeY; y += 1) {
+      const bucket = index.buckets.get(`${x}:${y}`)
+      if (!bucket) continue
+
+      for (const node of bucket) {
+        if (seen.has(node.id)) continue
+        seen.add(node.id)
+        out.push(node)
+      }
+    }
+  }
+
+  return out
 }
 
 export const getNodeById = (nodes: EditorNode[], id: string): EditorNode | undefined =>
@@ -82,19 +145,33 @@ export const getSnapCandidate = (
   nodeId: string,
   rawX: number,
   rawY: number,
-  excludeIds: Set<string>
+  excludeIds: Set<string>,
+  spatialIndex?: SnapSpatialIndex,
+  loopCache?: Map<string, boolean>
 ): SnapCandidate | null => {
   const draggedNode = getNodeById(nodes, nodeId)
   if (!draggedNode) return null
   if (draggedNode.type === 'START') return null
 
+  const candidates = spatialIndex ? getSpatialCandidates(spatialIndex, rawX, rawY) : nodes
+
   let bestCandidate: SnapCandidate | null = null
   let bestDistance = Number.POSITIVE_INFINITY
 
-  for (const candidate of nodes) {
+  for (const candidate of candidates) {
     if (candidate.id === nodeId) continue
     if (excludeIds.has(candidate.id)) continue
-    if (canCreateLoop(nodes, candidate.id, nodeId)) continue
+
+    const loopKey = `${candidate.id}->${nodeId}`
+    const loopBlocked = loopCache?.has(loopKey)
+      ? loopCache.get(loopKey) === true
+      : canCreateLoop(nodes, candidate.id, nodeId)
+
+    if (!loopCache?.has(loopKey)) {
+      loopCache?.set(loopKey, loopBlocked)
+    }
+
+    if (loopBlocked) continue
 
     const targetX = candidate.x
     const targetY = getConnectedChildY(candidate)

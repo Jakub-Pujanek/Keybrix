@@ -7,7 +7,7 @@ import {
   type Macro
 } from '../../../shared/api'
 
-type RecordingSource = 'topbar' | 'start-block'
+type RecordingSource = 'topbar' | 'start-block' | 'press-key-block'
 
 type EditorState = {
   nodes: EditorNode[]
@@ -17,6 +17,7 @@ type EditorState = {
   shortcut: string
   isRecordingShortcut: boolean
   recordingSource: RecordingSource | null
+  recordingNodeId: string | null
   heldKeys: string[]
   comboKeys: string[]
   loadEditorMacro: (macroId?: string) => Promise<void>
@@ -29,7 +30,7 @@ type EditorState = {
   updateNodePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
   clearNodes: () => void
   setZoom: (zoom: number) => void
-  startShortcutRecording: (source: RecordingSource) => void
+  startShortcutRecording: (source: RecordingSource, nodeId?: string) => void
   cancelShortcutRecording: () => void
   handleShortcutKeyDown: (event: KeyboardEvent) => void
   handleShortcutKeyUp: (event: KeyboardEvent) => Promise<void>
@@ -212,6 +213,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   shortcut: 'CTRL + SHIFT + M',
   isRecordingShortcut: false,
   recordingSource: null,
+  recordingNodeId: null,
   heldKeys: [],
   comboKeys: [],
 
@@ -263,6 +265,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     if (type === 'REPEAT') {
       nextNode.payload.count = 2
+    }
+    if (type === 'INFINITE_LOOP') {
+      nextNode.payload.label = 'Infinite Loop'
     }
 
     set((state) => ({ nodes: [...state.nodes, nextNode] }))
@@ -343,10 +348,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ zoom: clamped })
   },
 
-  startShortcutRecording: (source) => {
+  startShortcutRecording: (source, nodeId) => {
     set({
       isRecordingShortcut: true,
       recordingSource: source,
+      recordingNodeId: nodeId ?? null,
       heldKeys: [],
       comboKeys: []
     })
@@ -356,6 +362,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       isRecordingShortcut: false,
       recordingSource: null,
+      recordingNodeId: null,
       heldKeys: [],
       comboKeys: []
     })
@@ -374,7 +381,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   handleShortcutKeyUp: async (event) => {
-    const { isRecordingShortcut, heldKeys, comboKeys, recordingSource } = get()
+    const { isRecordingShortcut, heldKeys, comboKeys, recordingSource, recordingNodeId } = get()
     if (!isRecordingShortcut) return
 
     event.preventDefault()
@@ -386,23 +393,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const formatted = formatShortcut(comboKeys)
 
-    set((state) => ({
-      shortcut: formatted,
-      isRecordingShortcut: false,
-      recordingSource: null,
-      comboKeys: [],
-      nodes: state.nodes.map((node) =>
-        node.type === 'START'
-          ? {
-              ...node,
-              payload: {
-                ...node.payload,
-                shortcut: formatted
+    set((state) => {
+      if (recordingSource === 'press-key-block' && recordingNodeId) {
+        return {
+          isRecordingShortcut: false,
+          recordingSource: null,
+          recordingNodeId: null,
+          comboKeys: [],
+          nodes: state.nodes.map((node) =>
+            node.id === recordingNodeId && node.type === 'PRESS_KEY'
+              ? {
+                  ...node,
+                  payload: {
+                    ...node.payload,
+                    key: formatted
+                  }
+                }
+              : node
+          )
+        }
+      }
+
+      return {
+        shortcut: formatted,
+        isRecordingShortcut: false,
+        recordingSource: null,
+        recordingNodeId: null,
+        comboKeys: [],
+        nodes: state.nodes.map((node) =>
+          node.type === 'START'
+            ? {
+                ...node,
+                payload: {
+                  ...node.payload,
+                  shortcut: formatted
+                }
               }
-            }
-          : node
-      )
-    }))
+            : node
+        )
+      }
+    })
 
     if (recordingSource) {
       await window.api.keyboard.recordShortcut({

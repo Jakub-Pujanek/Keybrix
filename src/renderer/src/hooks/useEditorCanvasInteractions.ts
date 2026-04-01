@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EditorNode } from '../../../shared/api'
 import {
+  buildSnapSpatialIndex,
   getChainFrom,
   getNodeById,
   getSnapCandidate,
-  mapChainPositions
+  mapChainPositions,
+  type SnapSpatialIndex
 } from '../lib/editor/canvasPhysics'
 
 type DragSession = {
   rootId: string
   chainIds: string[]
+  excludeIds: Set<string>
+  loopCache: Map<string, boolean>
   initialPositions: Map<string, { x: number; y: number }>
   pointerStartX: number
   pointerStartY: number
@@ -71,8 +75,11 @@ export function useEditorCanvasInteractions({
   const sessionRef = useRef<DragSession | null>(null)
   const nodesRef = useRef(nodes)
   const zoomRef = useRef(zoom)
+  const spatialIndexRef = useRef<SnapSpatialIndex>(buildSnapSpatialIndex(nodes))
   const moveHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const upHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
+  const frameRef = useRef<number | null>(null)
+  const pendingDisplayPositionsRef = useRef<Record<string, { x: number; y: number }>>({})
   const previewRef = useRef<{ childId: string | null; parentId: string | null }>({
     childId: null,
     parentId: null
@@ -80,6 +87,7 @@ export function useEditorCanvasInteractions({
 
   useEffect(() => {
     nodesRef.current = nodes
+    spatialIndexRef.current = buildSnapSpatialIndex(nodes)
   }, [nodes])
 
   useEffect(() => {
@@ -99,6 +107,16 @@ export function useEditorCanvasInteractions({
     previewRef.current = { childId, parentId }
     setSnapPreviewChildId(childId)
     setSnapPreviewParentId(parentId)
+  }, [])
+
+  const clearDragPreviewState = useCallback((): void => {
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+    }
+
+    pendingDisplayPositionsRef.current = {}
+    setDisplayPositions({})
   }, [])
 
   const handlePointerMove = useCallback(
@@ -126,13 +144,25 @@ export function useEditorCanvasInteractions({
         session.rootId,
         rawX,
         rawY,
-        new Set(session.chainIds)
+        session.excludeIds,
+        spatialIndexRef.current,
+        session.loopCache
       )
 
       applyPreview(candidate ? session.rootId : null, candidate ? candidate.parentId : null)
 
       const updates = mapChainPositions(session.chainIds, session.initialPositions, dx, dy)
-      setDisplayPositions(toObjectPositions(updates))
+      pendingDisplayPositionsRef.current = toObjectPositions(updates)
+
+      if (frameRef.current !== null) return
+
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null
+
+        if (!sessionRef.current) return
+
+        setDisplayPositions(pendingDisplayPositionsRef.current)
+      })
     },
     [applyPreview]
   )
@@ -145,7 +175,7 @@ export function useEditorCanvasInteractions({
       if (!session.moved) {
         setSelectedNodeIds(session.chainIds)
         sessionRef.current = null
-        setDisplayPositions({})
+        clearDragPreviewState()
         setIsDraggingBlocks(false)
         clearPreview()
         return
@@ -155,7 +185,7 @@ export function useEditorCanvasInteractions({
         removeNodeTree(session.rootId)
         setSelectedNodeIds([])
         sessionRef.current = null
-        setDisplayPositions({})
+        clearDragPreviewState()
         setIsDraggingBlocks(false)
         clearPreview()
         return
@@ -167,7 +197,7 @@ export function useEditorCanvasInteractions({
       const rootInitial = session.initialPositions.get(session.rootId)
       if (!rootInitial) {
         sessionRef.current = null
-        setDisplayPositions({})
+        clearDragPreviewState()
         setIsDraggingBlocks(false)
         clearPreview()
         return
@@ -181,7 +211,9 @@ export function useEditorCanvasInteractions({
         session.rootId,
         rawX,
         rawY,
-        new Set(session.chainIds)
+        session.excludeIds,
+        spatialIndexRef.current,
+        session.loopCache
       )
 
       if (candidate) {
@@ -214,7 +246,7 @@ export function useEditorCanvasInteractions({
       }
 
       sessionRef.current = null
-      setDisplayPositions({})
+      clearDragPreviewState()
       setIsDraggingBlocks(false)
       clearPreview()
     },
@@ -224,7 +256,8 @@ export function useEditorCanvasInteractions({
       isDeleteZoneHit,
       removeNodeTree,
       setManyNodePositions,
-      setNodeNext
+      setNodeNext,
+      clearDragPreviewState
     ]
   )
 
@@ -263,6 +296,8 @@ export function useEditorCanvasInteractions({
   }, [isDraggingBlocks])
 
   const handleBlockPointerDown = (nodeId: string, clientX: number, clientY: number): void => {
+    clearDragPreviewState()
+
     const chainIds = getChainFrom(nodesRef.current, nodeId)
     const initialPositions = new Map<string, { x: number; y: number }>()
 
@@ -279,6 +314,8 @@ export function useEditorCanvasInteractions({
     sessionRef.current = {
       rootId: nodeId,
       chainIds,
+      excludeIds: new Set(chainIds),
+      loopCache: new Map<string, boolean>(),
       initialPositions,
       pointerStartX: clientX,
       pointerStartY: clientY,
@@ -286,7 +323,6 @@ export function useEditorCanvasInteractions({
     }
 
     setIsDraggingBlocks(true)
-    setDisplayPositions({})
     clearPreview()
   }
 
@@ -296,6 +332,12 @@ export function useEditorCanvasInteractions({
     removeNodeTree(selectedNodeIds[0])
     setSelectedNodeIds([])
   }, [removeNodeTree, selectedNodeIds])
+
+  useEffect(() => {
+    return () => {
+      clearDragPreviewState()
+    }
+  }, [clearDragPreviewState])
 
   return {
     snapPreviewParentId,
