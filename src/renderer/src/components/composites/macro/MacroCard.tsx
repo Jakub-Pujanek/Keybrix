@@ -13,6 +13,7 @@ type MacroCardProps = {
   isActive: boolean
   status: string
   onToggle: (id: string, value: boolean) => void
+  onRun: (id: string) => void
 }
 
 function MacroCard({
@@ -22,7 +23,8 @@ function MacroCard({
   shortcut,
   isActive,
   status,
-  onToggle
+  onToggle,
+  onRun
 }: MacroCardProps): React.JSX.Element {
   const { tx } = useI18n()
   const statusKey = `macro.status.${status}` as `macro.status.${MacroStatus}`
@@ -42,7 +44,15 @@ function MacroCard({
 
       <div className="mt-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" className="h-8 w-8 px-0">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 w-8 px-0"
+            onClick={() => {
+              onRun(id)
+            }}
+            aria-label={tx('macro.run')}
+          >
             <Play className="h-4 w-4" />
           </Button>
           <Button variant="ghost" className="h-8 w-8 px-0">

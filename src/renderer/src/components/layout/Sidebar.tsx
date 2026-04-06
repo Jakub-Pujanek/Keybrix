@@ -1,6 +1,7 @@
 import { Database, House, Settings, Sparkles } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { useI18n } from '../../lib/useI18n'
+import keybrixLogo from '../../assets/KeyBrix.svg'
 
 const navItems = [
   { key: 'dashboard', icon: House, labelKey: 'nav.dashboard' },
@@ -16,9 +17,7 @@ function Sidebar(): React.JSX.Element {
 
   return (
     <aside className="flex w-[72px] flex-col items-center border-r border-white/10 bg-[#111827]/70 py-3">
-      <div className="mb-6 h-9 w-9 rounded-md bg-gradient-to-br from-[#8ab4ff] to-[#f07d2f] text-[11px] font-bold text-[#111827] grid place-items-center">
-        KB
-      </div>
+      <img src={keybrixLogo} alt="KeyBrix" className="mb-6 h-9 w-9 select-none" draggable={false} />
 
       <nav className="flex flex-col items-center gap-3">
         {navItems.map((item) => {

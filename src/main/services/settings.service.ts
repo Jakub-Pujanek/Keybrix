@@ -8,9 +8,8 @@ import {
   type UpdateAppSettingsInput
 } from '../../shared/api'
 
-const Store =
-  ((ElectronStore as unknown as { default?: typeof ElectronStore }).default ??
-    ElectronStore) as typeof ElectronStore
+const Store = ((ElectronStore as unknown as { default?: typeof ElectronStore }).default ??
+  ElectronStore) as typeof ElectronStore
 
 class SettingsService {
   private readonly store = new Store<{ settings: AppSettings }>({

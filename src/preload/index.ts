@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
   ActivityLogSchema,
+  DEFAULT_APP_SETTINGS,
   coerceAppSettings,
   type DashboardStats,
   DashboardStatsSchema,
@@ -13,6 +14,7 @@ import {
   SystemStatusSchema,
   ToggleMacroInputSchema,
   type ActivityLog,
+  type AppSettings,
   type KeybrixApi,
   type Macro,
   type MacroStatus,
@@ -37,6 +39,11 @@ let statusTimer: ReturnType<typeof setInterval> | undefined
 let macroTimer: ReturnType<typeof setInterval> | undefined
 
 const statusCycle: MacroStatus[] = ['RUNNING', 'ACTIVE', 'IDLE', 'PAUSED']
+
+type MacroCommand = {
+  type?: unknown
+  ms?: unknown
+}
 
 const macroLocalizationKeys: Record<
   string,
@@ -83,6 +90,27 @@ const resolveLanguage = async (): Promise<Language> => {
   }
 }
 
+const resolveSettings = async (): Promise<AppSettings> => {
+  try {
+    const settingsRaw = await ipcRenderer.invoke(IPC_CHANNELS.settings.get)
+    return coerceAppSettings(settingsRaw)
+  } catch {
+    return DEFAULT_APP_SETTINGS
+  }
+}
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const createRuntimeLog = (input: Pick<ActivityLog, 'level' | 'message'>): ActivityLog =>
+  ActivityLogSchema.parse({
+    id: `log-runtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: timestamp(),
+    ...input
+  })
+
 const localizeMacro = (macro: Macro, language: Language): Macro => {
   const keys = macroLocalizationKeys[macro.id]
   if (!keys) return macro
@@ -98,7 +126,8 @@ const localizeLog = (log: ActivityLog, language: Language): ActivityLog => {
   const key = logLocalizationKeys[log.id]
   if (!key) return log
 
-  const macroName = log.id === 'log-1' ? t(language, 'mock.macros.macro-copy-paste-pro.name') : undefined
+  const macroName =
+    log.id === 'log-1' ? t(language, 'mock.macros.macro-copy-paste-pro.name') : undefined
 
   return {
     ...log,
@@ -139,6 +168,22 @@ const buildStats = (): DashboardStats => {
     successRate,
     activeNow
   })
+}
+
+const deactivateAllMacros = (): void => {
+  for (const macro of macrosState) {
+    if (!macro.isActive && macro.status === 'IDLE') continue
+
+    macro.isActive = false
+    macro.status = 'IDLE'
+    emitMacroStatus(macro.id, 'IDLE')
+  }
+}
+
+const getMacroCommands = (macro: Macro): MacroCommand[] => {
+  const raw = macro.blocksJson['commands']
+  if (!Array.isArray(raw)) return []
+  return raw as MacroCommand[]
 }
 
 const ensureLogTimer = (): void => {
@@ -260,6 +305,23 @@ const api: KeybrixApi = {
       const macro = macrosState.find((item) => item.id === parsed.id)
       if (!macro) return false
 
+      if (parsed.isActive) {
+        const settings = await resolveSettings()
+        if (!settings.globalMaster) {
+          const language = settings.language
+          const blockedLog = createRuntimeLog({
+            level: 'WARN',
+            message: t(language, 'runtime.globalMasterBlockedToggle', {
+              macroName: localizeMacro(macro, language).name
+            })
+          })
+
+          logsState.unshift(blockedLog)
+          emitLog(blockedLog)
+          return false
+        }
+      }
+
       macro.isActive = parsed.isActive
       macro.status = parsed.isActive ? 'ACTIVE' : 'IDLE'
       emitMacroStatus(macro.id, macro.status)
@@ -269,8 +331,21 @@ const api: KeybrixApi = {
       const macro = macrosState.find((item) => item.id === id)
       if (!macro) return
 
-      const language = await resolveLanguage()
+      const settings = await resolveSettings()
+      const language = settings.language
       const localizedMacroName = localizeMacro(macro, language).name
+
+      if (!settings.globalMaster) {
+        const blockedLog = createRuntimeLog({
+          level: 'WARN',
+          message: t(language, 'runtime.globalMasterBlockedRun', {
+            macroName: localizedMacroName
+          })
+        })
+        logsState.unshift(blockedLog)
+        emitLog(blockedLog)
+        return
+      }
 
       macro.status = 'RUNNING'
       macro.isActive = true
@@ -286,6 +361,62 @@ const api: KeybrixApi = {
       })
       logsState.unshift(runLog)
       emitLog(runLog)
+
+      const commands = getMacroCommands(macro)
+      const defaultDelayMs = settings.delayMs
+
+      for (const command of commands) {
+        try {
+          const commandType = typeof command?.type === 'string' ? command.type : undefined
+          if (!commandType) {
+            throw new Error('Missing command type')
+          }
+
+          if (commandType === 'WAIT') {
+            const waitMsRaw = typeof command.ms === 'number' ? command.ms : defaultDelayMs
+            const waitMs = Math.max(0, Math.round(waitMsRaw))
+            await sleep(waitMs)
+            continue
+          }
+
+          if (commandType === 'INFINITE_LOOP') {
+            const unsupportedLog = createRuntimeLog({
+              level: 'WARN',
+              message: t(language, 'runtime.commandInfiniteLoopSkipped', {
+                macroName: localizedMacroName
+              })
+            })
+            logsState.unshift(unsupportedLog)
+            emitLog(unsupportedLog)
+            continue
+          }
+
+          await sleep(defaultDelayMs)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+          const errorLog = createRuntimeLog({
+            level: 'ERR',
+            message: t(language, 'runtime.commandExecutionFailed', {
+              macroName: localizedMacroName,
+              reason: errorMessage
+            })
+          })
+          logsState.unshift(errorLog)
+          emitLog(errorLog)
+
+          if (settings.stopOnError) {
+            macro.status = 'IDLE'
+            macro.isActive = false
+            emitMacroStatus(macro.id, 'IDLE')
+            return
+          }
+        }
+      }
+
+      macro.status = 'ACTIVE'
+      macro.isActive = true
+      emitMacroStatus(macro.id, 'ACTIVE')
 
       await ipcRenderer
         .invoke(IPC_CHANNELS.notifications.macroRun, { macroName: localizedMacroName })
@@ -368,6 +499,18 @@ const api: KeybrixApi = {
         const parsed = UpdateAppSettingsInputSchema.parse(input)
         const result = await ipcRenderer.invoke(IPC_CHANNELS.settings.update, parsed)
         const next = coerceAppSettings(result)
+
+        if (parsed.globalMaster === false) {
+          deactivateAllMacros()
+
+          const masterOffLog = createRuntimeLog({
+            level: 'WARN',
+            message: t(next.language, 'runtime.globalMasterDisabledAll')
+          })
+          logsState.unshift(masterOffLog)
+          emitLog(masterOffLog)
+        }
+
         return next
       } catch (error) {
         console.error('[settings][preload] update failed:', error, input)

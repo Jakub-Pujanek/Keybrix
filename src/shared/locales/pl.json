@@ -35,6 +35,7 @@
   },
   "macro": {
     "newMacro": "Nowe Makro",
+    "run": "Uruchom makro",
     "status": {
       "RUNNING": "DZIAŁA",
       "IDLE": "BEZCZYNNE",
@@ -163,6 +164,11 @@
       "clipboardIntegrity": "Monitor schowka przeszedl kontrolę integralnosci.",
       "queueSynced": "Kolejka w tle zsynchronizowana, utracone zdarzenia: 0."
     },
+    "globalMasterBlockedToggle": "Globalny przełącznik jest WYŁ. Nie można aktywować '{{macroName}}'.",
+    "globalMasterBlockedRun": "Globalny przełącznik jest WYŁ. Ręczne uruchomienie '{{macroName}}' zablokowane.",
+    "globalMasterDisabledAll": "Globalny przełącznik wyłączony. Wszystkie aktywne makra zostały zatrzymane.",
+    "commandInfiniteLoopSkipped": "Pominięto nieobsługiwaną pętlę nieskończoną w '{{macroName}}'.",
+    "commandExecutionFailed": "Makro '{{macroName}}' napotkało błąd polecenia: {{reason}}.",
     "manualRunStarted": "Uruchomiono ręcznie makro '{{macroName}}'.",
     "shortcutRecorded": "Zarejestrowano skrót ({{source}}): {{keys}}"
   },

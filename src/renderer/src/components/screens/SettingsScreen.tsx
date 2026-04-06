@@ -3,6 +3,7 @@ import ToggleSwitch from '../primitives/ToggleSwitch'
 import { useSettingsStore } from '../../store/settings.store'
 import { t } from '../../lib/i18n'
 import type { Language } from '../../../../shared/i18n'
+import keybrixLogo from '../../assets/KeyBrix.svg'
 
 function SectionHeader({ title }: { title: string }): React.JSX.Element {
   return (
@@ -23,7 +24,7 @@ function SettingsScreen(): React.JSX.Element {
   const language = appSettings?.language ?? currentLanguage
 
   const globalMaster = appSettings?.globalMaster ?? true
-  const delayMs = appSettings?.delayMs ?? 50
+  const delayMs = appSettings?.delayMs ?? 0
   const stopOnError = appSettings?.stopOnError ?? true
   const themeMode = appSettings?.themeMode ?? 'DARK'
   const accentColor = appSettings?.accentColor ?? 'blue'
@@ -36,7 +37,9 @@ function SettingsScreen(): React.JSX.Element {
 
   const commitDelay = (): void => {
     const parsed = Number(delayDraft)
-    const safeDelay = Number.isFinite(parsed) ? Math.min(10_000, Math.max(0, Math.round(parsed))) : delayMs
+    const safeDelay = Number.isFinite(parsed)
+      ? Math.min(10_000, Math.max(0, Math.round(parsed)))
+      : delayMs
     setDelayDraft(String(safeDelay))
     void updateAppSettings({ delayMs: safeDelay })
   }
@@ -50,7 +53,9 @@ function SettingsScreen(): React.JSX.Element {
           <SectionHeader title={tx('settings.generalConfiguration')} />
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-[25x] font-medium text-slate-200">{tx('settings.launchAtStartup')}</span>
+              <span className="text-[25x] font-medium text-slate-200">
+                {tx('settings.launchAtStartup')}
+              </span>
               <ToggleSwitch
                 checked={launchAtStartup}
                 onChange={(checked) => {
@@ -70,7 +75,9 @@ function SettingsScreen(): React.JSX.Element {
               />
             </div>
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-sm font-medium text-slate-200">{tx('settings.showNotificationsOnMacroRun')}</span>
+              <span className="text-sm font-medium text-slate-200">
+                {tx('settings.showNotificationsOnMacroRun')}
+              </span>
               <ToggleSwitch
                 checked={notifyOnRun}
                 onChange={(checked) => {
@@ -79,7 +86,9 @@ function SettingsScreen(): React.JSX.Element {
               />
             </div>
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-sm font-medium text-slate-200">{tx('settings.languageSelection')}</span>
+              <span className="text-sm font-medium text-slate-200">
+                {tx('settings.languageSelection')}
+              </span>
               <div className="relative">
                 <select
                   value={language}
@@ -106,7 +115,9 @@ function SettingsScreen(): React.JSX.Element {
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg border border-[#24458f] bg-[#1a2039] px-6 py-6 shadow-[0_0_0_1px_rgba(37,79,170,0.12)]">
               <div>
-                <p className="text-[30px] font-semibold text-slate-100">{tx('settings.globalMasterSwitch')}</p>
+                <p className="text-[30px] font-semibold text-slate-100">
+                  {tx('settings.globalMasterSwitch')}
+                </p>
                 <p className="mt-1 text-[11px] font-semibold tracking-[0.13em] text-slate-400 uppercase">
                   {tx('settings.enableAllMacrosGlobally')}
                 </p>
@@ -139,12 +150,16 @@ function SettingsScreen(): React.JSX.Element {
                   }}
                   className="h-7 w-12 bg-transparent text-right text-sm text-[#2f79ff] outline-none"
                 />
-                <span className="ml-2 text-xs font-semibold text-slate-300 uppercase">{tx('common.ms')}</span>
+                <span className="ml-2 text-xs font-semibold text-slate-300 uppercase">
+                  {tx('common.ms')}
+                </span>
               </div>
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-sm font-medium text-slate-200">{tx('settings.stopExecutionOnError')}</span>
+              <span className="text-sm font-medium text-slate-200">
+                {tx('settings.stopExecutionOnError')}
+              </span>
               <ToggleSwitch
                 checked={stopOnError}
                 onChange={(checked) => {
@@ -159,7 +174,9 @@ function SettingsScreen(): React.JSX.Element {
           <SectionHeader title={tx('settings.visualAppearance')} />
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-sm font-medium text-slate-200">{tx('settings.environmentTheme')}</span>
+              <span className="text-sm font-medium text-slate-200">
+                {tx('settings.environmentTheme')}
+              </span>
               <div className="inline-flex rounded bg-[#0d1222] p-1">
                 {(['DARK', 'LIGHT'] as const).map((mode) => (
                   <button
@@ -177,7 +194,9 @@ function SettingsScreen(): React.JSX.Element {
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-[#1a2039] px-5 py-5">
-              <span className="text-sm font-medium text-slate-200">{tx('settings.accentPalette')}</span>
+              <span className="text-sm font-medium text-slate-200">
+                {tx('settings.accentPalette')}
+              </span>
               <div className="flex items-center gap-4">
                 {(
                   [
@@ -209,9 +228,12 @@ function SettingsScreen(): React.JSX.Element {
         <article className="rounded-2xl bg-[#11182b]/70 px-6 py-8">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="grid h-14 w-14 place-items-center rounded-xl bg-[#172244] text-[40px] font-bold text-[#2f79ff]">
-                KB
-              </div>
+              <img
+                src={keybrixLogo}
+                alt="KeyBrix"
+                className="h-14 w-14 select-none"
+                draggable={false}
+              />
               <div>
                 <p className="text-3xl font-bold text-slate-100">{tx('common.appVersion')}</p>
                 <p className="mt-1 text-sm tracking-[0.12em] text-slate-400 uppercase">

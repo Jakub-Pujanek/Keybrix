@@ -22,6 +22,7 @@ function DashboardScreen(): React.JSX.Element {
   const macros = useMacroStore((state) => state.macros)
   const loadMacros = useMacroStore((state) => state.loadMacros)
   const setMacroActive = useMacroStore((state) => state.setMacroActive)
+  const runMacroManually = useMacroStore((state) => state.runMacroManually)
   const subscribeMacroStatus = useMacroStore((state) => state.subscribeMacroStatus)
 
   const logs = useActivityStore((state) => state.logs)
@@ -54,13 +55,19 @@ function DashboardScreen(): React.JSX.Element {
   return (
     <section data-testid="dashboard-screen" className="space-y-8">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={tx('dashboard.stats.totalAutomations')} value={String(stats?.totalAutomations ?? 0)} />
+        <StatCard
+          label={tx('dashboard.stats.totalAutomations')}
+          value={String(stats?.totalAutomations ?? 0)}
+        />
         <StatCard
           label={tx('dashboard.stats.timeSaved')}
           value={formatTimeSaved(stats?.timeSavedMinutes ?? 0)}
           accent="blue"
         />
-        <StatCard label={tx('dashboard.stats.successRate')} value={formatRate(stats?.successRate ?? 0)} />
+        <StatCard
+          label={tx('dashboard.stats.successRate')}
+          value={formatRate(stats?.successRate ?? 0)}
+        />
         <StatCard
           label={tx('dashboard.stats.activeNow')}
           value={String(stats?.activeNow ?? 0).padStart(2, '0')}
@@ -80,6 +87,9 @@ function DashboardScreen(): React.JSX.Element {
             status={macro.status}
             onToggle={(id, value) => {
               void setMacroActive(id, value)
+            }}
+            onRun={(id) => {
+              void runMacroManually(id)
             }}
           />
         ))}

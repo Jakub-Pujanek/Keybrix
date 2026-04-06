@@ -112,7 +112,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   notifyOnMacroRun: true,
   language: 'POLSKI',
   globalMaster: true,
-  delayMs: 50,
+  delayMs: 0,
   stopOnError: true,
   themeMode: 'DARK',
   accentColor: 'blue'

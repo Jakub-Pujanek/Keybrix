@@ -6,6 +6,7 @@ type MacroState = {
   isLoading: boolean
   loadMacros: () => Promise<void>
   setMacroActive: (id: string, isActive: boolean) => Promise<void>
+  runMacroManually: (id: string) => Promise<void>
   subscribeMacroStatus: () => () => void
 }
 
@@ -32,6 +33,9 @@ export const useMacroStore = create<MacroState>((set) => ({
           : macro
       )
     }))
+  },
+  runMacroManually: async (id) => {
+    await window.api.macros.runManually(id)
   },
   subscribeMacroStatus: () => {
     const applyStatus = (id: string, newStatus: MacroStatus): void => {

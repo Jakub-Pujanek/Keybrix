@@ -1,17 +1,9 @@
-import {
-  app,
-  shell,
-  BrowserWindow,
-  Tray,
-  Menu,
-  Notification,
-  ipcMain,
-  nativeImage
-} from 'electron'
+import { app, shell, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage } from 'electron'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
+  type AppSettings,
   IPC_CHANNELS,
   MacroRunNotificationInputSchema,
   UpdateAppSettingsInputSchema
@@ -23,7 +15,7 @@ let mainWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let isQuitting = false
 
-const getSettings = () => settingsService.get()
+const getSettings = (): AppSettings => settingsService.get()
 
 const resolveTrayIconPath = (): string | null => {
   const iconPathCandidates = [

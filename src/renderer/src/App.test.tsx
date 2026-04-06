@@ -74,7 +74,7 @@ const mockApi: KeybrixApi = {
       notifyOnMacroRun: true,
       language: 'POLSKI',
       globalMaster: true,
-      delayMs: 50,
+      delayMs: 0,
       stopOnError: true,
       themeMode: 'DARK',
       accentColor: 'blue'
@@ -85,7 +85,7 @@ const mockApi: KeybrixApi = {
       notifyOnMacroRun: input.notifyOnMacroRun ?? true,
       language: input.language ?? 'POLSKI',
       globalMaster: input.globalMaster ?? true,
-      delayMs: input.delayMs ?? 50,
+      delayMs: input.delayMs ?? 0,
       stopOnError: input.stopOnError ?? true,
       themeMode: input.themeMode ?? 'DARK',
       accentColor: input.accentColor ?? 'blue'

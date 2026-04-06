@@ -13,10 +13,7 @@ export const useI18n = (): {
   const effectiveLanguage = appSettings?.language ?? language
 
   const tx = useMemo(() => {
-    return (
-      key: I18nPathKey,
-      variables?: Record<string, string | number | undefined>
-    ): string =>
+    return (key: I18nPathKey, variables?: Record<string, string | number | undefined>): string =>
       t(effectiveLanguage, key, variables)
   }, [effectiveLanguage])
 

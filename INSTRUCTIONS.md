@@ -8,7 +8,8 @@ Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa
 ### main (Electron main process)
 - Plik wejściowy: src/main/index.ts.
 - Odpowiada za lifecycle aplikacji i okno.
-- Aktualnie nie ma pełnej warstwy backend IPC dla dashboardu.
+- Trzyma IPC dla settings i systemowych notyfikacji.
+- Persistencja ustawien jest wydzielona do src/main/services/settings.service.ts (electron-store + migracja defaultow).
 
 ### preload
 - Plik: src/preload/index.ts.
@@ -17,7 +18,8 @@ Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa
   - czyta dane z src/main/store/mockData.ts,
   - waliduje payloady i dane wyjściowe przez schemy z src/shared/api.ts,
   - symuluje realtime przez onNewLog, onStatusUpdate, onMacroStatusChange,
-  - pilnuje cleanup timerow/listenerow.
+  - pilnuje cleanup timerow/listenerow,
+  - implementuje mock wykonania makra z respektowaniem settings (globalMaster, delayMs, stopOnError).
 
 ### shared
 - Plik kontraktu: src/shared/api.ts.
@@ -64,9 +66,17 @@ Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa
   - macro.store.ts,
   - activity.store.ts,
   - editor.store.ts,
+  - settings.store.ts,
   - ui.store.ts.
 - Store czyta dane przez window.api.
 - Realtime subskrypcje musza miec cleanup zwracany z useEffect.
+
+## 4.1 Zasady settings i silnika makr
+- Zmiana settings jest optymistyczna po stronie renderer (settings.store), ale finalny stan zawsze synchronizuj przez backend.
+- globalMaster = false musi blokowac aktywacje i reczne uruchomienia makr oraz zatrzymac aktywne makra.
+- delayMs jest domyslnym opoznieniem miedzy akcjami, gdy komenda nie wymusza swojego czasu.
+- stopOnError=true przerywa wykonanie makra po bledzie i ustawia status IDLE.
+- stopOnError=false loguje blad i przechodzi do kolejnej komendy.
 
 ## 5. Testy
 - Framework: Vitest + React Testing Library.
@@ -80,7 +90,7 @@ Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa
 Uruchamiaj przed oddaniem zmian:
 - pnpm run typecheck
 - pnpm run lint
-- pnpm run test -- --run
+- pnpm vitest run
 
 Formatowanie:
 - pnpm run format
@@ -108,6 +118,7 @@ W projekcie aktywna jest zasada explicit-function-return-type, wiec funkcje komp
 - Testy przechodza bez timeoutow i warningow act.
 - Zmiany sa spojne z aktualna struktura components/layout-primitives-composites-screens.
 - Przy zmianie API: shared -> preload -> renderer stores/components.
+- Przy zmianach node/preload sprawdz, czy tsconfig.node.json obejmuje src/shared/** (kontrakty API i i18n).
 
 ## 10. Czego nie robic
 - Nie przebudowuj architektury folderow bez uzgodnienia.
