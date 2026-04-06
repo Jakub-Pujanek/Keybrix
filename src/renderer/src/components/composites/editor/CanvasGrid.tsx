@@ -259,7 +259,7 @@ function CanvasGrid({
       onWheel={handleCanvasWheel}
       onDragOver={handleCanvasDragOver}
       onDrop={handleCanvasDrop}
-      className={`relative h-[calc(100vh-210px)] rounded border border-white/10 bg-[#060d1b] ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`relative h-[calc(100vh-210px)] rounded border border-[var(--kb-border)] bg-[var(--kb-editor-canvas-bg)] ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       <div
         className="absolute left-0 top-0 origin-top-left"
@@ -268,7 +268,7 @@ function CanvasGrid({
           height: `${WORLD_HEIGHT}px`,
           transform: `translate(${-camera.x}px, ${-camera.y}px) scale(${zoom})`,
           backgroundImage:
-            'radial-gradient(circle, rgba(125,150,255,0.24) 1px, transparent 1px), radial-gradient(circle, rgba(125,150,255,0.12) 1px, transparent 1px)',
+            'radial-gradient(circle, rgb(var(--kb-grid-dot-rgb) / 0.24) 1px, transparent 1px), radial-gradient(circle, rgb(var(--kb-grid-dot-rgb) / 0.12) 1px, transparent 1px)',
           backgroundSize: '22px 22px, 88px 88px',
           backgroundPosition: '0 0, 0 0'
         }}

@@ -39,27 +39,27 @@ function CanvasControls({
       <Button
         variant="icon"
         onClick={onZoomIn}
-        className="h-10 w-10 rounded-lg bg-[#1c2540] text-slate-200"
+        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
       >
         <Plus className="h-4 w-4" />
       </Button>
       <Button
         variant="icon"
         onClick={onZoomOut}
-        className="h-10 w-10 rounded-lg bg-[#1c2540] text-slate-200"
+        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
       >
         <Minus className="h-4 w-4" />
       </Button>
       <Button
         variant="icon"
         onClick={() => setIsSliderOpen((current) => !current)}
-        className="h-10 w-10 rounded-lg bg-[#1c2540] text-slate-200"
+        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
       >
         <Settings2 className="h-4 w-4" />
       </Button>
       {isSliderOpen ? (
-        <div className="absolute right-12 bottom-12 w-36 rounded-lg border border-white/10 bg-[#0f1729]/95 p-3 shadow-xl backdrop-blur-sm">
-          <p className="mb-2 text-[10px] font-semibold tracking-[0.1em] text-slate-400 uppercase">
+        <div className="absolute right-12 bottom-12 w-36 rounded-lg border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-3 shadow-xl backdrop-blur-sm">
+          <p className="mb-2 text-[10px] font-semibold tracking-[0.1em] text-[var(--kb-text-muted)] uppercase">
             {tx('editor.canvas.zoom')}
           </p>
           <input
@@ -69,11 +69,11 @@ function CanvasControls({
             step={5}
             value={Math.round(zoom * 100)}
             onChange={(event) => onZoomChange(Number(event.target.value) / 100)}
-            className="w-full accent-[#5f7fff]"
+            className="w-full accent-[rgb(var(--kb-accent-rgb))]"
           />
         </div>
       ) : null}
-      <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-[#1c2540] text-xs text-slate-300">
+      <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-[var(--kb-bg-surface)] text-xs text-[var(--kb-text-muted)]">
         <input
           value={zoomInput}
           onChange={(event) => setZoomInput(event.target.value.replace(/[^0-9]/g, ''))}

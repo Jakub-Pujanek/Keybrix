@@ -32,15 +32,15 @@ function MacroCard({
   return (
     <article
       data-testid="macro-card"
-      className="rounded-xl border border-white/5 bg-gradient-to-b from-[#1b2233] to-[#161d2c] px-5 py-5 shadow-[0_14px_40px_-20px_rgba(16,28,59,0.9)]"
+      className="rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] px-5 py-5 shadow-[0_14px_40px_-20px_rgba(16,28,59,0.45)]"
     >
       <div className="flex items-start justify-between">
         <ShortcutTag shortcut={shortcut} />
         <ToggleSwitch checked={isActive} onChange={(next) => onToggle(id, next)} />
       </div>
 
-      <h3 className="mt-4 text-[33px]/[1.15] text-white font-semibold">{name}</h3>
-      <p className="mt-2 min-h-12 text-[21px]/[1.45] text-slate-300">{description}</p>
+      <h3 className="mt-4 text-[33px]/[1.15] text-[var(--kb-text-main)] font-semibold">{name}</h3>
+      <p className="mt-2 min-h-12 text-[21px]/[1.45] text-[var(--kb-text-muted)]">{description}</p>
 
       <div className="mt-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ function MacroCard({
             <Pencil className="h-4 w-4" />
           </Button>
         </div>
-        <span className="text-[11px] font-semibold tracking-[0.15em] text-[#99b5ff] uppercase">
+        <span className="text-[11px] font-semibold tracking-[0.15em] text-[rgb(var(--kb-accent-rgb))] uppercase">
           {tx(statusKey)}
         </span>
       </div>

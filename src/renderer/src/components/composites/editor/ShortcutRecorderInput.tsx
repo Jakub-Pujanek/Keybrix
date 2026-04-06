@@ -20,7 +20,7 @@ function ShortcutRecorderInput({
 
   if (isRecording) {
     return (
-      <div className="inline-flex items-center gap-2 rounded bg-[#ff821f] px-3 py-2 text-xs font-bold tracking-[0.14em] text-white uppercase">
+      <div className="inline-flex items-center gap-2 rounded bg-[rgb(var(--kb-accent-rgb))] px-3 py-2 text-xs font-bold tracking-[0.14em] text-white uppercase">
         <button type="button" onClick={onCancel} className="opacity-90 hover:opacity-100">
           {tx('editor.shortcut.rec')}
         </button>
@@ -34,7 +34,7 @@ function ShortcutRecorderInput({
       type="button"
       variant="ghost"
       onClick={onStart}
-      className="h-8 rounded bg-[#ff821f] px-3 text-xs font-bold tracking-[0.14em] text-white uppercase hover:bg-[#ff942f]"
+      className="h-8 rounded bg-[rgb(var(--kb-accent-rgb))] px-3 text-xs font-bold tracking-[0.14em] text-white uppercase hover:brightness-110"
     >
       {value}
     </Button>

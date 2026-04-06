@@ -29,9 +29,9 @@ function EditorTopBar({
   const { tx } = useI18n()
 
   return (
-    <header className="mb-4 flex items-center justify-between rounded border border-white/10 bg-[#0c1426]/80 px-5 py-3">
+    <header className="mb-4 flex items-center justify-between rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] px-5 py-3">
       <div className="flex items-center gap-4">
-        <h2 className="text-[32px] font-semibold text-white">{macroTitle}</h2>
+        <h2 className="text-[32px] font-semibold text-[var(--kb-text-main)]">{macroTitle}</h2>
         <ShortcutRecorderInput
           value={shortcut}
           isRecording={isRecording}
@@ -45,14 +45,14 @@ function EditorTopBar({
         <button
           type="button"
           onClick={onClear}
-          className="text-sm font-semibold text-slate-300 hover:text-white"
+          className="text-sm font-semibold text-[var(--kb-text-muted)] hover:text-[var(--kb-text-main)]"
         >
           {tx('editor.topBar.clear')}
         </button>
         <Button
           variant="ghost"
           onClick={onTestRun}
-          className="h-10 rounded border border-white/10 px-4 text-sm text-slate-200"
+          className="h-10 rounded border border-[var(--kb-border)] px-4 text-sm"
         >
           <Play className="mr-2 h-4 w-4" />
           {tx('editor.topBar.testRun')}

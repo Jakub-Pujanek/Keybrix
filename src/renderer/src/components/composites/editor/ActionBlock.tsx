@@ -17,13 +17,13 @@ type ActionBlockProps = {
 }
 
 const colorByType: Record<EditorNode['type'], string> = {
-  START: 'from-[#5a49ff] to-[#4a52ff]',
-  PRESS_KEY: 'from-[#2f6eff] to-[#3666d8]',
-  WAIT: 'from-[#00a97b] to-[#0f9f70]',
-  MOUSE_CLICK: 'from-[#f57a00] to-[#ef6f00]',
-  TYPE_TEXT: 'from-[#2f6eff] to-[#3666d8]',
-  REPEAT: 'from-[#00a97b] to-[#0f9f70]',
-  INFINITE_LOOP: 'from-[#00a97b] to-[#0f9f70]'
+  START: 'from-[var(--kb-node-start-from)] to-[var(--kb-node-start-to)]',
+  PRESS_KEY: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
+  WAIT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
+  MOUSE_CLICK: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
+  TYPE_TEXT: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
+  REPEAT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
+  INFINITE_LOOP: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]'
 }
 
 const numeric = (value: unknown, fallback: number): number => {
@@ -69,14 +69,14 @@ function ActionBlock({
     <article className="relative w-[430px]">
       {showTopNotch ? (
         <div
-          className={`pointer-events-none absolute top-0 left-[30px] z-30 h-[11px] w-[74px] rounded-b-[6px] border-r border-b border-l -translate-y-[1px] ${highlightTopNotch ? 'border-[#ffd06b] bg-[#11224a]' : 'border-white/20 bg-[#070f21]'}`}
+          className={`pointer-events-none absolute top-0 left-[30px] z-30 h-[11px] w-[74px] rounded-b-[6px] border-r border-b border-l -translate-y-[1px] ${highlightTopNotch ? 'border-[var(--kb-node-notch-highlight-border)] bg-[var(--kb-node-notch-highlight-top-bg)]' : 'border-[var(--kb-node-notch-default-border)] bg-[var(--kb-node-notch-default-top-bg)]'}`}
         />
       ) : null}
       <div
-        className={`relative rounded border bg-gradient-to-r ${colorByType[node.type]} px-5 py-3 text-white shadow-[0_14px_30px_-20px_rgba(2,8,22,0.9)] ${isSelected ? 'border-[#ffd06b] ring-2 ring-[#ffd06b]/70' : 'border-white/10'}`}
+        className={`relative rounded border bg-gradient-to-r ${colorByType[node.type]} px-5 py-3 text-white shadow-[0_14px_30px_-20px_rgba(2,8,22,0.9)] ${isSelected ? 'border-[var(--kb-node-selected-border)] ring-2 ring-[var(--kb-node-selected-border)]/70' : 'border-[var(--kb-border)]'}`}
       >
         <div
-          className={`pointer-events-none absolute bottom-0 left-[30px] z-30 h-[12px] w-[74px] translate-y-[11px] rounded-b-[7px] border-r border-b border-l ${highlightBottomNotch ? 'border-[#ffd06b] bg-[#1f438d]' : 'border-white/20 bg-[#17336f]'}`}
+          className={`pointer-events-none absolute bottom-0 left-[30px] z-30 h-[12px] w-[74px] translate-y-[11px] rounded-b-[7px] border-r border-b border-l ${highlightBottomNotch ? 'border-[var(--kb-node-notch-highlight-border)] bg-[var(--kb-node-notch-highlight-bottom-bg)]' : 'border-[var(--kb-node-notch-default-border)] bg-[var(--kb-node-notch-default-bottom-bg)]'}`}
         />
 
         <div className="flex items-center justify-between gap-3">
@@ -105,7 +105,7 @@ function ActionBlock({
               value={keyToPress}
               onChange={(event) => onUpdatePayload(node.id, { key: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-44 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-44 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.keyCombo')}
             />
           </div>
@@ -120,7 +120,7 @@ function ActionBlock({
               value={textToType}
               onChange={(event) => onUpdatePayload(node.id, { text: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-full rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-full rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.typeText')}
             />
           </div>
@@ -139,7 +139,7 @@ function ActionBlock({
                 onUpdatePayload(node.id, { durationMs: Number(event.target.value) || 0 })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-28 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-28 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             />
           </div>
         ) : null}
@@ -154,7 +154,7 @@ function ActionBlock({
               value={mouseX}
               onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               {tx('editor.field.y')}
@@ -164,13 +164,13 @@ function ActionBlock({
               value={mouseY}
               onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <select
               value={mouseButton}
               onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             >
               <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
@@ -192,7 +192,7 @@ function ActionBlock({
                 onUpdatePayload(node.id, { count: Math.max(1, Number(event.target.value) || 1) })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             />
           </div>
         ) : null}

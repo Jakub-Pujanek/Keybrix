@@ -69,17 +69,17 @@ const items: LibraryItem[] = [
 const groupOrder: LibraryItem['group'][] = ['triggers', 'inputKeys', 'mouseActions', 'logicFlow']
 
 const groupAccentClass: Record<GroupName, string> = {
-  triggers: 'text-[#506cff]',
-  inputKeys: 'text-[#8ea5ff]',
+  triggers: 'text-[rgb(var(--kb-accent-rgb))]',
+  inputKeys: 'text-[rgb(var(--kb-accent-rgb)/0.78)]',
   mouseActions: 'text-[#f57a00]',
   logicFlow: 'text-[#00b58b]'
 }
 
 const itemClassByGroup: Record<GroupName, string> = {
   triggers:
-    'border-[#3152c5]/40 bg-[#1d2539] hover:border-[#4a6fff] hover:bg-[#202c46] text-slate-100',
+    'border-[rgb(var(--kb-accent-rgb)/0.38)] bg-[var(--kb-bg-surface)] hover:border-[rgb(var(--kb-accent-rgb)/0.75)] hover:bg-[rgb(var(--kb-accent-rgb)/0.14)] text-[var(--kb-text-main)]',
   inputKeys:
-    'border-[#3c57ba]/40 bg-[#1d2539] hover:border-[#5f7fff] hover:bg-[#1f2c4b] text-slate-100',
+    'border-[rgb(var(--kb-accent-rgb)/0.28)] bg-[var(--kb-bg-surface)] hover:border-[rgb(var(--kb-accent-rgb)/0.55)] hover:bg-[rgb(var(--kb-accent-rgb)/0.1)] text-[var(--kb-text-main)]',
   mouseActions:
     'border-[#c46612]/45 bg-[#32241f] hover:border-[#ef8d32] hover:bg-[#412b22] text-[#f7d7bd]',
   logicFlow:
@@ -87,8 +87,8 @@ const itemClassByGroup: Record<GroupName, string> = {
 }
 
 const iconClassByGroup: Record<GroupName, string> = {
-  triggers: 'text-[#9bb4ff]',
-  inputKeys: 'text-[#b8c7ff]',
+  triggers: 'text-[rgb(var(--kb-accent-rgb))]',
+  inputKeys: 'text-[rgb(var(--kb-accent-rgb)/0.8)]',
   mouseActions: 'text-[#ff9a3f]',
   logicFlow: 'text-[#11c7a3]'
 }
@@ -105,18 +105,18 @@ function BlocksLibraryPanel({ onAddBlock }: BlocksLibraryPanelProps): React.JSX.
   }
 
   return (
-    <aside className="w-[245px] rounded border border-white/10 bg-[#141d31]/95 p-4">
+    <aside className="w-[245px] rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-4">
       <div className="mb-5 flex items-center justify-between">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-300 uppercase">
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
           {tx('editor.library.title')}
         </p>
-        <Filter className="h-3 w-3 text-slate-500" />
+        <Filter className="h-3 w-3 text-[var(--kb-text-muted)]" />
       </div>
 
       <div className="space-y-6">
         {groupOrder.map((group) => (
           <section key={group}>
-            <h3 className="mb-3 text-[11px] font-bold tracking-[0.14em] text-[#506cff] uppercase">
+            <h3 className="mb-3 text-[11px] font-bold tracking-[0.14em] uppercase">
               <span className={groupAccentClass[group]}>{groupLabelMap[group]}</span>
             </h3>
             <div className="space-y-2">

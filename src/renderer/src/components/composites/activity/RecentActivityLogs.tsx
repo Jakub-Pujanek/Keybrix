@@ -19,11 +19,11 @@ function RecentActivityLogs({ logs }: RecentActivityLogsProps): React.JSX.Elemen
   return (
     <section
       data-testid="recent-activity-logs"
-      className="rounded-xl border border-white/10 bg-gradient-to-b from-[#1a2233] to-[#101828]"
+      className="rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)]"
     >
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.14em] text-slate-300 uppercase">
-          <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+      <header className="flex items-center justify-between border-b border-[var(--kb-border)] px-5 py-3">
+        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
+          <span className="inline-block h-2 w-2 rounded-full bg-[rgb(var(--kb-accent-rgb))]" />
           {tx('activity.recentLogs')}
         </div>
         <div className="flex gap-1">
@@ -35,8 +35,8 @@ function RecentActivityLogs({ logs }: RecentActivityLogsProps): React.JSX.Elemen
 
       <div className="space-y-2 px-5 py-4">
         {logs.slice(0, 6).map((log) => (
-          <p key={log.id} className="font-mono text-xs text-slate-300">
-            <span className="text-slate-500">{log.timestamp}</span>{' '}
+          <p key={log.id} className="font-mono text-xs text-[var(--kb-text-main)]">
+            <span className="text-[var(--kb-text-muted)]">{log.timestamp}</span>{' '}
             <span className={`${levelColorMap[log.level]} font-semibold`}>{log.level}</span>{' '}
             {log.message}
           </p>

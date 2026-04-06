@@ -1,8 +1,9 @@
-import { app } from 'electron'
+import { app, nativeTheme } from 'electron'
 import ElectronStore from 'electron-store'
 import {
   AppSettingsSchema,
   DEFAULT_APP_SETTINGS,
+  type ThemeMode,
   type AppSettings,
   UpdateAppSettingsInputSchema,
   type UpdateAppSettingsInput
@@ -45,7 +46,19 @@ class SettingsService {
       this.applyLaunchAtStartup(next.launchAtStartup)
     }
 
+    if (parsed.themeMode !== undefined) {
+      this.applyThemeMode(next.themeMode)
+    }
+
     return next
+  }
+
+  applyThemeMode(mode: ThemeMode): void {
+    try {
+      nativeTheme.themeSource = mode === 'DARK' ? 'dark' : 'light'
+    } catch (error) {
+      console.warn('[settings] Failed to apply theme mode:', error)
+    }
   }
 
   applyLaunchAtStartup(enabled: boolean): void {

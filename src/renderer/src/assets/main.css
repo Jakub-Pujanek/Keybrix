@@ -8,7 +8,69 @@ body,
 
 @layer base {
   :root {
+    --kb-accent-rgb: 47 121 255;
+    --kb-accent-orange: #ff821f;
+    --kb-bg-main: #090f1c;
+    --kb-bg-shell: rgba(17, 24, 39, 0.7);
+    --kb-bg-surface: #1a2039;
+    --kb-bg-surface-strong: #0d1222;
+    --kb-bg-panel: rgba(17, 24, 43, 0.7);
+    --kb-bg-overlay: rgba(255, 255, 255, 0.05);
+    --kb-border: rgba(255, 255, 255, 0.1);
+    --kb-text-main: #f8fafc;
+    --kb-text-muted: #94a3b8;
+    --kb-bg-gradient-a: rgba(33, 65, 136, 0.25);
+    --kb-bg-gradient-b: rgba(26, 58, 120, 0.2);
+    --kb-bg-gradient-start: #0a1020;
+    --kb-bg-gradient-end: #070b14;
+    --kb-editor-canvas-bg: #060d1b;
+    --kb-node-start-from: #5a49ff;
+    --kb-node-start-to: #4a52ff;
+    --kb-node-press-from: #2f6eff;
+    --kb-node-press-to: #3666d8;
+    --kb-node-wait-from: #00a97b;
+    --kb-node-wait-to: #0f9f70;
+    --kb-node-mouse-from: #f57a00;
+    --kb-node-mouse-to: #ef6f00;
+    --kb-node-selected-border: #ffd06b;
+    --kb-node-notch-default-border: rgba(255, 255, 255, 0.2);
+    --kb-node-notch-default-top-bg: #070f21;
+    --kb-node-notch-default-bottom-bg: #17336f;
+    --kb-node-notch-highlight-border: #ffd06b;
+    --kb-node-notch-highlight-top-bg: #11224a;
+    --kb-node-notch-highlight-bottom-bg: #1f438d;
+    --kb-node-input-bg: rgba(0, 0, 0, 0.25);
+    --kb-grid-dot-rgb: var(--kb-accent-rgb);
     color-scheme: dark;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.light {
+    --kb-bg-main: #eff4fb;
+    --kb-bg-shell: rgba(247, 250, 255, 0.92);
+    --kb-bg-surface: #ffffff;
+    --kb-bg-surface-strong: #eef3ff;
+    --kb-bg-panel: rgba(238, 243, 255, 0.82);
+    --kb-bg-overlay: rgba(7, 11, 20, 0.04);
+    --kb-border: rgba(20, 35, 68, 0.14);
+    --kb-text-main: #142242;
+    --kb-text-muted: #4d5d80;
+    --kb-bg-gradient-a: rgba(79, 127, 220, 0.12);
+    --kb-bg-gradient-b: rgba(117, 160, 237, 0.1);
+    --kb-bg-gradient-start: #f4f8ff;
+    --kb-bg-gradient-end: #e8eefb;
+    --kb-editor-canvas-bg: #e9f0ff;
+    --kb-node-notch-default-border: rgba(20, 35, 68, 0.22);
+    --kb-node-notch-default-top-bg: #dae4ff;
+    --kb-node-notch-default-bottom-bg: #b7ccff;
+    --kb-node-notch-highlight-border: #f2a91f;
+    --kb-node-notch-highlight-top-bg: #d8ecff;
+    --kb-node-notch-highlight-bottom-bg: #8cb3ff;
+    --kb-node-input-bg: rgba(9, 22, 47, 0.22);
+    color-scheme: light;
   }
 
   * {
@@ -16,12 +78,14 @@ body,
   }
 
   body {
-    @apply m-0 overflow-hidden bg-[#080d18] text-slate-100 antialiased;
+    @apply m-0 overflow-hidden antialiased;
     font-family: 'Space Grotesk', 'Manrope', 'Segoe UI', sans-serif;
+    background-color: var(--kb-bg-main);
+    color: var(--kb-text-main);
     background-image:
-      radial-gradient(1200px 700px at 10% -20%, rgba(33, 65, 136, 0.25), transparent 60%),
-      radial-gradient(1000px 500px at 100% 0%, rgba(26, 58, 120, 0.2), transparent 55%),
-      linear-gradient(180deg, #0a1020 0%, #070b14 100%);
+      radial-gradient(1200px 700px at 10% -20%, var(--kb-bg-gradient-a), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, var(--kb-bg-gradient-b), transparent 55%),
+      linear-gradient(180deg, var(--kb-bg-gradient-start) 0%, var(--kb-bg-gradient-end) 100%);
   }
 
   #root {

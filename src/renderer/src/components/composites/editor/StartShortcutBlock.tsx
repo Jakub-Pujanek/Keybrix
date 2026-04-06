@@ -19,8 +19,8 @@ function StartShortcutBlock({
   const { tx } = useI18n()
 
   return (
-    <div className="rounded border border-white/15 bg-[#222a42] p-3">
-      <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-300 uppercase">
+    <div className="rounded border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-3">
+      <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
         {tx('editor.shortcut.startShortcut')}
       </p>
       <div className="mt-2">

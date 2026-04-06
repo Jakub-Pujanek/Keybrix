@@ -9,7 +9,8 @@ function ToggleSwitch({
   onChange,
   accent = 'blue'
 }: ToggleSwitchProps): React.JSX.Element {
-  const activeClass = accent === 'orange' ? 'bg-[#ff821f]' : 'bg-[#2f79ff]'
+  const activeClass =
+    accent === 'orange' ? 'bg-[var(--kb-accent-orange)]' : 'bg-[rgb(var(--kb-accent-rgb))]'
 
   return (
     <button

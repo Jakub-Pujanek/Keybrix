@@ -94,12 +94,12 @@ function DashboardScreen(): React.JSX.Element {
           />
         ))}
 
-        <article className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-[#3a4c73] bg-[#0a1222]">
+        <article className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-[var(--kb-border)] bg-[var(--kb-bg-surface-strong)]">
           <button
             type="button"
-            className="flex flex-col items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-8 py-8 text-slate-300 transition hover:bg-white/10"
+            className="flex flex-col items-center gap-4 rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-overlay)] px-8 py-8 text-[var(--kb-text-muted)] transition hover:brightness-110"
           >
-            <span className="grid h-12 w-12 place-items-center rounded-xl border border-white/10 text-white">
+            <span className="grid h-12 w-12 place-items-center rounded-xl border border-[var(--kb-border)] text-[var(--kb-text-main)]">
               <Plus className="h-6 w-6" />
             </span>
             <span className="text-xs font-semibold tracking-[0.16em] uppercase">
