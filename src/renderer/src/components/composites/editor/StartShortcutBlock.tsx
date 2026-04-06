@@ -1,4 +1,5 @@
 import ShortcutRecorderInput from './ShortcutRecorderInput'
+import { useI18n } from '../../../lib/useI18n'
 
 type StartShortcutBlockProps = {
   shortcut: string
@@ -15,10 +16,12 @@ function StartShortcutBlock({
   onStartRecording,
   onCancelRecording
 }: StartShortcutBlockProps): React.JSX.Element {
+  const { tx } = useI18n()
+
   return (
     <div className="rounded border border-white/15 bg-[#222a42] p-3">
       <p className="text-[11px] font-semibold tracking-[0.14em] text-slate-300 uppercase">
-        Start Shortcut
+        {tx('editor.shortcut.startShortcut')}
       </p>
       <div className="mt-2">
         <ShortcutRecorderInput

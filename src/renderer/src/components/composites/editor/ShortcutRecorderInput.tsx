@@ -1,4 +1,5 @@
 import Button from '../../primitives/Button'
+import { useI18n } from '../../../lib/useI18n'
 
 type ShortcutRecorderInputProps = {
   value: string
@@ -15,13 +16,15 @@ function ShortcutRecorderInput({
   onStart,
   onCancel
 }: ShortcutRecorderInputProps): React.JSX.Element {
+  const { tx } = useI18n()
+
   if (isRecording) {
     return (
       <div className="inline-flex items-center gap-2 rounded bg-[#ff821f] px-3 py-2 text-xs font-bold tracking-[0.14em] text-white uppercase">
         <button type="button" onClick={onCancel} className="opacity-90 hover:opacity-100">
-          REC
+          {tx('editor.shortcut.rec')}
         </button>
-        <span>{pressedPreview || 'PRESS KEYS'}</span>
+        <span>{pressedPreview || tx('editor.shortcut.pressKeys')}</span>
       </div>
     )
   }

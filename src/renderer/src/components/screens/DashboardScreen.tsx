@@ -4,6 +4,7 @@ import RecentActivityLogs from '../composites/activity/RecentActivityLogs'
 import MacroCard from '../composites/macro/MacroCard'
 import StatCard from '../composites/StatCard'
 import { useActivityStore, useAppStore, useMacroStore } from '../../store'
+import { useI18n } from '../../lib/useI18n'
 
 const formatTimeSaved = (minutes: number): string => {
   const hours = Math.round(minutes / 60)
@@ -13,6 +14,7 @@ const formatTimeSaved = (minutes: number): string => {
 const formatRate = (rate: number): string => `${rate.toFixed(1)}%`
 
 function DashboardScreen(): React.JSX.Element {
+  const { tx } = useI18n()
   const stats = useAppStore((state) => state.dashboardStats)
   const loadDashboardStats = useAppStore((state) => state.loadDashboardStats)
   const subscribeSystemStatus = useAppStore((state) => state.subscribeSystemStatus)
@@ -52,15 +54,15 @@ function DashboardScreen(): React.JSX.Element {
   return (
     <section data-testid="dashboard-screen" className="space-y-8">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Automations" value={String(stats?.totalAutomations ?? 0)} />
+        <StatCard label={tx('dashboard.stats.totalAutomations')} value={String(stats?.totalAutomations ?? 0)} />
         <StatCard
-          label="Time Saved"
+          label={tx('dashboard.stats.timeSaved')}
           value={formatTimeSaved(stats?.timeSavedMinutes ?? 0)}
           accent="blue"
         />
-        <StatCard label="Success Rate" value={formatRate(stats?.successRate ?? 0)} />
+        <StatCard label={tx('dashboard.stats.successRate')} value={formatRate(stats?.successRate ?? 0)} />
         <StatCard
-          label="Active Now"
+          label={tx('dashboard.stats.activeNow')}
           value={String(stats?.activeNow ?? 0).padStart(2, '0')}
           accent="orange"
         />
@@ -91,7 +93,7 @@ function DashboardScreen(): React.JSX.Element {
               <Plus className="h-6 w-6" />
             </span>
             <span className="text-xs font-semibold tracking-[0.16em] uppercase">
-              Create Custom Block
+              {tx('dashboard.createCustomBlock')}
             </span>
           </button>
         </article>

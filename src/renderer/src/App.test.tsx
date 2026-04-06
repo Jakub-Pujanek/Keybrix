@@ -66,6 +66,30 @@ const mockApi: KeybrixApi = {
   },
   keyboard: {
     recordShortcut: async () => true
+  },
+  settings: {
+    get: async () => ({
+      launchAtStartup: true,
+      minimizeToTrayOnClose: true,
+      notifyOnMacroRun: true,
+      language: 'POLSKI',
+      globalMaster: true,
+      delayMs: 50,
+      stopOnError: true,
+      themeMode: 'DARK',
+      accentColor: 'blue'
+    }),
+    update: async (input) => ({
+      launchAtStartup: input.launchAtStartup ?? true,
+      minimizeToTrayOnClose: input.minimizeToTrayOnClose ?? true,
+      notifyOnMacroRun: input.notifyOnMacroRun ?? true,
+      language: input.language ?? 'POLSKI',
+      globalMaster: input.globalMaster ?? true,
+      delayMs: input.delayMs ?? 50,
+      stopOnError: input.stopOnError ?? true,
+      themeMode: input.themeMode ?? 'DARK',
+      accentColor: input.accentColor ?? 'blue'
+    })
   }
 }
 

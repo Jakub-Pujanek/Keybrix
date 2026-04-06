@@ -1,4 +1,5 @@
 import type { ActivityLog } from '../../../../../shared/api'
+import { useI18n } from '../../../lib/useI18n'
 
 type RecentActivityLogsProps = {
   logs: ActivityLog[]
@@ -13,6 +14,8 @@ const levelColorMap: Record<ActivityLog['level'], string> = {
 }
 
 function RecentActivityLogs({ logs }: RecentActivityLogsProps): React.JSX.Element {
+  const { tx } = useI18n()
+
   return (
     <section
       data-testid="recent-activity-logs"
@@ -21,7 +24,7 @@ function RecentActivityLogs({ logs }: RecentActivityLogsProps): React.JSX.Elemen
       <header className="flex items-center justify-between border-b border-white/10 px-5 py-3">
         <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.14em] text-slate-300 uppercase">
           <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
-          Recent Activity Logs
+          {tx('activity.recentLogs')}
         </div>
         <div className="flex gap-1">
           <span className="h-2 w-2 rounded-full bg-red-300" />

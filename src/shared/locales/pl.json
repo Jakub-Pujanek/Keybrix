@@ -1,0 +1,176 @@
+{
+  "common": {
+    "appVersion": "KeyBrix v1.0.0",
+    "ms": "ms"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "editor": "Edytor",
+    "settings": "Ustawienia",
+    "storage": "Pamięć"
+  },
+  "header": {
+    "title": {
+      "dashboard": "Panel",
+      "editor": "Edytor Bloków",
+      "settings": "Ustawienia"
+    },
+    "badge": {
+      "macroBuilder": "Konstruktor Makr",
+      "system": "System {{status}}"
+    },
+    "actions": {
+      "notifications": "Powiadomienia",
+      "help": "Pomoc"
+    }
+  },
+  "dashboard": {
+    "stats": {
+      "totalAutomations": "Liczba Makr",
+      "timeSaved": "Zaoszczędzony Czas",
+      "successRate": "Skuteczność",
+      "activeNow": "Aktywne Teraz"
+    },
+    "createCustomBlock": "Utwórz Własny Blok"
+  },
+  "macro": {
+    "newMacro": "Nowe Makro",
+    "status": {
+      "RUNNING": "DZIAŁA",
+      "IDLE": "BEZCZYNNE",
+      "ACTIVE": "AKTYWNE",
+      "PAUSED": "WSTRZYMANE"
+    }
+  },
+  "activity": {
+    "recentLogs": "Ostatnie Logi Aktywności"
+  },
+  "editor": {
+    "library": {
+      "title": "Biblioteka Bloków",
+      "groups": {
+        "triggers": "WYZWALACZE",
+        "inputKeys": "KLAWISZE / WEJŚCIE",
+        "mouseActions": "AKCJE MYSZY",
+        "logicFlow": "LOGIKA I PRZEPŁYW"
+      },
+      "blocks": {
+        "start": "Blok Startowy",
+        "pressKey": "Wciśnij Klawisz",
+        "typeText": "Wpisz Tekst",
+        "mouseClick": "Kliknięcie Myszy",
+        "wait": "Czekaj (ms)",
+        "repeat": "Pętla Powtórzeń",
+        "infiniteLoop": "Pętla Nieskończona"
+      }
+    },
+    "topBar": {
+      "clear": "Wyczyść",
+      "testRun": "Uruchom Test",
+      "saveMacro": "Zapisz Makro"
+    },
+    "shortcut": {
+      "rec": "NAGRAJ",
+      "pressKeys": "WCIŚNIJ KLAWISZE",
+      "startShortcut": "Skrót Startowy"
+    },
+    "field": {
+      "key": "Klawisz",
+      "text": "Tekst",
+      "waitMs": "Czas oczekiwania",
+      "x": "X",
+      "y": "Y",
+      "count": "Liczba"
+    },
+    "placeholder": {
+      "keyCombo": "np. CTRL + C",
+      "typeText": "Wpisz tekst do wpisania"
+    },
+    "mouseButton": {
+      "LEFT": "LEWY",
+      "RIGHT": "PRAWY",
+      "MIDDLE": "ŚRODKOWY"
+    },
+    "infiniteLoop": {
+      "runsForever": "Uruchomione bez końca"
+    },
+    "canvas": {
+      "zoom": "Powiększenie"
+    }
+  },
+  "settings": {
+    "generalConfiguration": "Konfiguracja Ogólna",
+    "launchAtStartup": "Uruchamiaj przy starcie systemu",
+    "minimizeToTrayOnClose": "Minimalizuj do zasobnika przy zamknieciu",
+    "showNotificationsOnMacroRun": "Pokazuj powiadomienia przy uruchomieniu makra",
+    "languageSelection": "Wybór Języka",
+    "language": {
+      "polish": "POLSKI",
+      "english": "ENGLISH"
+    },
+    "macroEngineSettings": "Ustawienia Silnika Makr",
+    "globalMasterSwitch": "Globalny Przełącznik",
+    "enableAllMacrosGlobally": "Włacz wszystkie makra globalnie",
+    "defaultDelayBetweenActions": "Domyślne opóznienie między akcjami",
+    "stopExecutionOnError": "Zatrzymaj wykonanie po błędzie",
+    "visualAppearance": "Wygląd Aplikacji",
+    "environmentTheme": "Motyw Środowiska",
+    "theme": {
+      "dark": "CIEMNY",
+      "light": "JASNY"
+    },
+    "accentPalette": "Paleta Akcentu",
+    "accentLabel": "Akcent",
+    "highPerformanceAutomationSuite": "Pakiet Automatyzacji Wysokiej Wydajności",
+    "checkForSystemUpdates": "Sprawdź aktualizacje systemu",
+    "enginePipeline": "Pipeline Silnika",
+    "optimized": "Zoptymalizowany"
+  },
+  "mock": {
+    "macros": {
+      "macro-copy-paste-pro": {
+        "name": "Kopiuj i Wklej Pro",
+        "description": "Menedżer schowka dla snippettów deweloperskich i czystego formatowania tekstu."
+      },
+      "macro-open-browser": {
+        "name": "Otwórz Przeglądarkę",
+        "description": "Uruchamia przeglądarki deweloperskie z gotowymi sesjami i czyszczeniem cache."
+      },
+      "macro-type-signature": {
+        "name": "Wpisz Podpis",
+        "description": "Wstawia podpis e-mail w zależności od aktywnej aplikacji."
+      },
+      "macro-screenshot-save": {
+        "name": "Zrzut i Zapis",
+        "description": "Przechwytuje aktywne okno, optymalizuje PNG i wysyła do folderu w chmurze."
+      },
+      "macro-docker-clean": {
+        "name": "Czyszczenie Dockera",
+        "description": "Zatrzymuje kontenery, usuwa nieużywane wolumeny i restartuje stos deweloperski."
+      }
+    },
+    "logs": {
+      "log-1": "Makro '{{macroName}}' zainicjalizowano pomyślnie.",
+      "log-2": "Wykryto wejście: [CTRL+SHIFT+C] przypisanie do slotu 0x42.",
+      "log-3": "Usługa KeyBrix Engine v2.4.0 działa stabilnie w tle.",
+      "log-4": "Wykryto presje pamięci przy węźle 'Image Processor'. Uruchomiono samonaprawe."
+    }
+  },
+  "runtime": {
+    "samples": {
+      "dockerCleanCompleted": "Makro 'Docker Clean' zakonczyło odswiezenie stosu.",
+      "inputDetected": "Wykryto wejście: [ALT+F2] przypisane do slotu automatyzacji 0x12.",
+      "clipboardIntegrity": "Monitor schowka przeszedl kontrolę integralnosci.",
+      "queueSynced": "Kolejka w tle zsynchronizowana, utracone zdarzenia: 0."
+    },
+    "manualRunStarted": "Uruchomiono ręcznie makro '{{macroName}}'.",
+    "shortcutRecorded": "Zarejestrowano skrót ({{source}}): {{keys}}"
+  },
+  "tray": {
+    "open": "Otwórz KeyBrix",
+    "quit": "Zakończ"
+  },
+  "notifications": {
+    "macroStarted": "Makro '{{macroName}}' zostało uruchomione."
+  }
+}

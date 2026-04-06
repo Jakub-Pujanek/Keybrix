@@ -1,11 +1,14 @@
 import { Plus } from 'lucide-react'
 import Button from '../../primitives/Button'
+import { useI18n } from '../../../lib/useI18n'
 
 type CreateMacroButtonProps = {
   compact?: boolean
 }
 
 function CreateMacroButton({ compact = false }: CreateMacroButtonProps): React.JSX.Element {
+  const { tx } = useI18n()
+
   return (
     <Button
       variant="primary"
@@ -14,10 +17,10 @@ function CreateMacroButton({ compact = false }: CreateMacroButtonProps): React.J
       {compact ? (
         <>
           <Plus className="mr-2 h-4 w-4" />
-          Create Custom Block
+          {tx('dashboard.createCustomBlock')}
         </>
       ) : (
-        'New Macro'
+        tx('macro.newMacro')
       )}
     </Button>
   )

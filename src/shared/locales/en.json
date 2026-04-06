@@ -1,0 +1,176 @@
+{
+  "common": {
+    "appVersion": "KeyBrix v1.0.0",
+    "ms": "ms"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "editor": "Editor",
+    "settings": "Settings",
+    "storage": "Storage"
+  },
+  "header": {
+    "title": {
+      "dashboard": "Dashboard",
+      "editor": "Block Editor",
+      "settings": "Settings"
+    },
+    "badge": {
+      "macroBuilder": "Macro Builder",
+      "system": "System {{status}}"
+    },
+    "actions": {
+      "notifications": "Notifications",
+      "help": "Help"
+    }
+  },
+  "dashboard": {
+    "stats": {
+      "totalAutomations": "Total Automations",
+      "timeSaved": "Time Saved",
+      "successRate": "Success Rate",
+      "activeNow": "Active Now"
+    },
+    "createCustomBlock": "Create Custom Block"
+  },
+  "macro": {
+    "newMacro": "New Macro",
+    "status": {
+      "RUNNING": "RUNNING",
+      "IDLE": "IDLE",
+      "ACTIVE": "ACTIVE",
+      "PAUSED": "PAUSED"
+    }
+  },
+  "activity": {
+    "recentLogs": "Recent Activity Logs"
+  },
+  "editor": {
+    "library": {
+      "title": "Blocks Library",
+      "groups": {
+        "triggers": "TRIGGERS",
+        "inputKeys": "INPUT / KEYS",
+        "mouseActions": "MOUSE ACTIONS",
+        "logicFlow": "LOGIC & FLOW"
+      },
+      "blocks": {
+        "start": "Start Block",
+        "pressKey": "Press Key",
+        "typeText": "Type Text",
+        "mouseClick": "Mouse Click",
+        "wait": "Wait (ms)",
+        "repeat": "Repeat Loop",
+        "infiniteLoop": "Infinite Loop"
+      }
+    },
+    "topBar": {
+      "clear": "Clear",
+      "testRun": "Test Run",
+      "saveMacro": "Save Macro"
+    },
+    "shortcut": {
+      "rec": "REC",
+      "pressKeys": "PRESS KEYS",
+      "startShortcut": "Start Shortcut"
+    },
+    "field": {
+      "key": "Key",
+      "text": "Text",
+      "waitMs": "Wait ms",
+      "x": "X",
+      "y": "Y",
+      "count": "Count"
+    },
+    "placeholder": {
+      "keyCombo": "e.g. CTRL + C",
+      "typeText": "Enter text to type"
+    },
+    "mouseButton": {
+      "LEFT": "LEFT",
+      "RIGHT": "RIGHT",
+      "MIDDLE": "MIDDLE"
+    },
+    "infiniteLoop": {
+      "runsForever": "Runs forever"
+    },
+    "canvas": {
+      "zoom": "Zoom"
+    }
+  },
+  "settings": {
+    "generalConfiguration": "General Configuration",
+    "launchAtStartup": "Launch at system startup",
+    "minimizeToTrayOnClose": "Minimize to tray on close",
+    "showNotificationsOnMacroRun": "Show notifications on macro run",
+    "languageSelection": "Language Selection",
+    "language": {
+      "polish": "POLSKI",
+      "english": "ENGLISH"
+    },
+    "macroEngineSettings": "Macro Engine Settings",
+    "globalMasterSwitch": "Global Master Switch",
+    "enableAllMacrosGlobally": "Enable all macros globally",
+    "defaultDelayBetweenActions": "Default delay between actions",
+    "stopExecutionOnError": "Stop execution on error",
+    "visualAppearance": "Visual Appearance",
+    "environmentTheme": "Environment Theme",
+    "theme": {
+      "dark": "DARK",
+      "light": "LIGHT"
+    },
+    "accentPalette": "Accent Palette",
+    "accentLabel": "Accent",
+    "highPerformanceAutomationSuite": "High-Performance Automation Suite",
+    "checkForSystemUpdates": "Check for system updates",
+    "enginePipeline": "Engine Pipeline",
+    "optimized": "Optimized"
+  },
+  "mock": {
+    "macros": {
+      "macro-copy-paste-pro": {
+        "name": "Copy & Paste Pro",
+        "description": "Multi-format clipboard manager for developer snippets and clean text formatting."
+      },
+      "macro-open-browser": {
+        "name": "Open Browser",
+        "description": "Launches dev environment browsers with pre-authenticated sessions and clear cache."
+      },
+      "macro-type-signature": {
+        "name": "Type Signature",
+        "description": "Inserts context-aware email signatures based on active application detection."
+      },
+      "macro-screenshot-save": {
+        "name": "Screenshot + Save",
+        "description": "Captures active window, optimizes as PNG, and uploads to cloud project folder."
+      },
+      "macro-docker-clean": {
+        "name": "Docker Clean",
+        "description": "Stops all containers, prunes unused volumes, and restarts the core dev stack."
+      }
+    },
+    "logs": {
+      "log-1": "Macro '{{macroName}}' initialized successfully.",
+      "log-2": "Input detected: [CTRL+SHIFT+C] mapping to slot 0x42.",
+      "log-3": "KeyBrix Engine v2.4.0 background service is stable.",
+      "log-4": "Memory pressure detected at logic node 'Image Processor'. Self-healing triggered."
+    }
+  },
+  "runtime": {
+    "samples": {
+      "dockerCleanCompleted": "Macro 'Docker Clean' completed stack refresh.",
+      "inputDetected": "Input detected: [ALT+F2] mapped to automation slot 0x12.",
+      "clipboardIntegrity": "Clipboard watcher passed integrity check.",
+      "queueSynced": "Background queue synchronized with 0 dropped events."
+    },
+    "manualRunStarted": "Manual run started for '{{macroName}}'.",
+    "shortcutRecorded": "Shortcut recorded ({{source}}): {{keys}}"
+  },
+  "tray": {
+    "open": "Open KeyBrix",
+    "quit": "Quit"
+  },
+  "notifications": {
+    "macroStarted": "Macro '{{macroName}}' started."
+  }
+}

@@ -1,6 +1,7 @@
 import { Minus, Plus, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import Button from '../../primitives/Button'
+import { useI18n } from '../../../lib/useI18n'
 
 type CanvasControlsProps = {
   zoom: number
@@ -15,6 +16,7 @@ function CanvasControls({
   onZoomOut,
   onZoomChange
 }: CanvasControlsProps): React.JSX.Element {
+  const { tx } = useI18n()
   const [zoomInput, setZoomInput] = useState(String(Math.round(zoom * 100)))
   const [isSliderOpen, setIsSliderOpen] = useState(false)
 
@@ -58,7 +60,7 @@ function CanvasControls({
       {isSliderOpen ? (
         <div className="absolute right-12 bottom-12 w-36 rounded-lg border border-white/10 bg-[#0f1729]/95 p-3 shadow-xl backdrop-blur-sm">
           <p className="mb-2 text-[10px] font-semibold tracking-[0.1em] text-slate-400 uppercase">
-            Zoom
+            {tx('editor.canvas.zoom')}
           </p>
           <input
             type="range"

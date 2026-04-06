@@ -1,4 +1,11 @@
 import { z } from 'zod'
+import { LanguageSchema } from './i18n'
+
+export const ThemeModeSchema = z.enum(['DARK', 'LIGHT'])
+export type ThemeMode = z.infer<typeof ThemeModeSchema>
+
+export const AccentColorSchema = z.enum(['blue', 'orange', 'violet', 'green'])
+export type AccentColor = z.infer<typeof AccentColorSchema>
 
 export const MacroStatusSchema = z.enum(['RUNNING', 'IDLE', 'ACTIVE', 'PAUSED'])
 export type MacroStatus = z.infer<typeof MacroStatusSchema>
@@ -86,6 +93,54 @@ export const RecordShortcutInputSchema = z.object({
 })
 export type RecordShortcutInput = z.infer<typeof RecordShortcutInputSchema>
 
+export const AppSettingsSchema = z.object({
+  launchAtStartup: z.boolean(),
+  minimizeToTrayOnClose: z.boolean(),
+  notifyOnMacroRun: z.boolean(),
+  language: LanguageSchema,
+  globalMaster: z.boolean(),
+  delayMs: z.number().int().min(0).max(10_000),
+  stopOnError: z.boolean(),
+  themeMode: ThemeModeSchema,
+  accentColor: AccentColorSchema
+})
+export type AppSettings = z.infer<typeof AppSettingsSchema>
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  launchAtStartup: true,
+  minimizeToTrayOnClose: true,
+  notifyOnMacroRun: true,
+  language: 'POLSKI',
+  globalMaster: true,
+  delayMs: 50,
+  stopOnError: true,
+  themeMode: 'DARK',
+  accentColor: 'blue'
+}
+
+const PartialAppSettingsSchema = AppSettingsSchema.partial()
+
+export const coerceAppSettings = (input: unknown): AppSettings => {
+  const partial = PartialAppSettingsSchema.parse(input)
+  return AppSettingsSchema.parse({
+    ...DEFAULT_APP_SETTINGS,
+    ...partial
+  })
+}
+
+export const UpdateAppSettingsInputSchema = AppSettingsSchema.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  {
+    message: 'At least one settings field must be provided.'
+  }
+)
+export type UpdateAppSettingsInput = z.infer<typeof UpdateAppSettingsInputSchema>
+
+export const MacroRunNotificationInputSchema = z.object({
+  macroName: z.string().min(1)
+})
+export type MacroRunNotificationInput = z.infer<typeof MacroRunNotificationInputSchema>
+
 export const IPC_CHANNELS = {
   macros: {
     getAll: 'macros:get-all',
@@ -108,6 +163,13 @@ export const IPC_CHANNELS = {
   },
   keyboard: {
     recordShortcut: 'keyboard:record-shortcut'
+  },
+  settings: {
+    get: 'settings:get',
+    update: 'settings:update'
+  },
+  notifications: {
+    macroRun: 'notifications:macro-run'
   }
 } as const
 
@@ -133,5 +195,9 @@ export interface KeybrixApi {
   }
   keyboard: {
     recordShortcut: (input: RecordShortcutInput) => Promise<boolean>
+  }
+  settings: {
+    get: () => Promise<AppSettings>
+    update: (input: UpdateAppSettingsInput) => Promise<AppSettings>
   }
 }

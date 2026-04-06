@@ -2,6 +2,8 @@ import { Pencil, Play } from 'lucide-react'
 import Button from '../../primitives/Button'
 import ShortcutTag from '../../primitives/ShortcutTag'
 import ToggleSwitch from '../../primitives/ToggleSwitch'
+import { useI18n } from '../../../lib/useI18n'
+import type { MacroStatus } from '../../../../../shared/api'
 
 type MacroCardProps = {
   id: string
@@ -22,6 +24,9 @@ function MacroCard({
   status,
   onToggle
 }: MacroCardProps): React.JSX.Element {
+  const { tx } = useI18n()
+  const statusKey = `macro.status.${status}` as `macro.status.${MacroStatus}`
+
   return (
     <article
       data-testid="macro-card"
@@ -45,7 +50,7 @@ function MacroCard({
           </Button>
         </div>
         <span className="text-[11px] font-semibold tracking-[0.15em] text-[#99b5ff] uppercase">
-          {status}
+          {tx(statusKey)}
         </span>
       </div>
     </article>

@@ -1,16 +1,18 @@
 import { Database, House, Settings, Sparkles } from 'lucide-react'
 import { useAppStore } from '../../store'
+import { useI18n } from '../../lib/useI18n'
 
 const navItems = [
-  { key: 'dashboard', icon: House, label: 'Dashboard' },
-  { key: 'editor', icon: Sparkles, label: 'Editor' },
-  { key: 'settings', icon: Settings, label: 'Settings' },
-  { key: 'storage', icon: Database, label: 'Storage' }
+  { key: 'dashboard', icon: House, labelKey: 'nav.dashboard' },
+  { key: 'editor', icon: Sparkles, labelKey: 'nav.editor' },
+  { key: 'settings', icon: Settings, labelKey: 'nav.settings' },
+  { key: 'storage', icon: Database, labelKey: 'nav.storage' }
 ] as const
 
 function Sidebar(): React.JSX.Element {
   const activeScreen = useAppStore((state) => state.activeScreen)
   const setActiveScreen = useAppStore((state) => state.setActiveScreen)
+  const { tx } = useI18n()
 
   return (
     <aside className="flex w-[72px] flex-col items-center border-r border-white/10 bg-[#111827]/70 py-3">
@@ -29,7 +31,7 @@ function Sidebar(): React.JSX.Element {
             <button
               key={item.key}
               type="button"
-              title={item.label}
+              title={tx(item.labelKey)}
               onClick={() => {
                 if (isRealScreen) setActiveScreen(item.key)
               }}

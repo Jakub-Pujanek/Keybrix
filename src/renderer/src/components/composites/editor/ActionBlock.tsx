@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { GripVertical } from 'lucide-react'
 import type { EditorNode } from '../../../../../shared/api'
 import ShortcutRecorderInput from './ShortcutRecorderInput'
+import { useI18n } from '../../../lib/useI18n'
 
 type ActionBlockProps = {
   node: EditorNode
@@ -42,7 +43,18 @@ function ActionBlock({
   onCancelShortcutRecording,
   onUpdatePayload
 }: ActionBlockProps): React.JSX.Element {
-  const label = String(node.payload.label ?? node.type)
+  const { tx } = useI18n()
+  const defaultLabelByType: Record<EditorNode['type'], string> = {
+    START: tx('editor.library.blocks.start'),
+    PRESS_KEY: tx('editor.library.blocks.pressKey'),
+    WAIT: tx('editor.library.blocks.wait'),
+    MOUSE_CLICK: tx('editor.library.blocks.mouseClick'),
+    TYPE_TEXT: tx('editor.library.blocks.typeText'),
+    REPEAT: tx('editor.library.blocks.repeat'),
+    INFINITE_LOOP: tx('editor.library.blocks.infiniteLoop')
+  }
+
+  const label = String(node.payload.label ?? defaultLabelByType[node.type])
   const shortcut = String(node.payload.shortcut ?? '')
   const keyToPress = String(node.payload.key ?? 'A')
   const textToType = String(node.payload.text ?? '')
@@ -87,14 +99,14 @@ function ActionBlock({
         {node.type === 'PRESS_KEY' && !isRecordingShortcut ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              Key
+              {tx('editor.field.key')}
             </label>
             <input
               value={keyToPress}
               onChange={(event) => onUpdatePayload(node.id, { key: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-44 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
-              placeholder="np. CTRL + C"
+              placeholder={tx('editor.placeholder.keyCombo')}
             />
           </div>
         ) : null}
@@ -102,14 +114,14 @@ function ActionBlock({
         {node.type === 'TYPE_TEXT' ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              Text
+              {tx('editor.field.text')}
             </label>
             <input
               value={textToType}
               onChange={(event) => onUpdatePayload(node.id, { text: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-full rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
-              placeholder="Wpisz tekst do wklepania"
+              placeholder={tx('editor.placeholder.typeText')}
             />
           </div>
         ) : null}
@@ -117,7 +129,7 @@ function ActionBlock({
         {node.type === 'WAIT' ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              Wait ms
+              {tx('editor.field.waitMs')}
             </label>
             <input
               type="number"
@@ -135,7 +147,7 @@ function ActionBlock({
         {node.type === 'MOUSE_CLICK' ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              X
+              {tx('editor.field.x')}
             </label>
             <input
               type="number"
@@ -145,7 +157,7 @@ function ActionBlock({
               className="h-8 w-20 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              Y
+              {tx('editor.field.y')}
             </label>
             <input
               type="number"
@@ -160,9 +172,9 @@ function ActionBlock({
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 rounded border border-white/20 bg-black/25 px-2 text-sm text-white outline-none focus:border-white/40"
             >
-              <option value="LEFT">LEFT</option>
-              <option value="RIGHT">RIGHT</option>
-              <option value="MIDDLE">MIDDLE</option>
+              <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
+              <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
+              <option value="MIDDLE">{tx('editor.mouseButton.MIDDLE')}</option>
             </select>
           </div>
         ) : null}
@@ -170,7 +182,7 @@ function ActionBlock({
         {node.type === 'REPEAT' ? (
           <div className="mt-3 flex items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
-              Count
+              {tx('editor.field.count')}
             </label>
             <input
               type="number"
@@ -187,7 +199,7 @@ function ActionBlock({
 
         {node.type === 'INFINITE_LOOP' ? (
           <div className="mt-3 text-xs font-semibold tracking-[0.08em] text-white/85 uppercase">
-            Runs forever
+            {tx('editor.infiniteLoop.runsForever')}
           </div>
         ) : null}
       </div>

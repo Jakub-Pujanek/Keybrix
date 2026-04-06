@@ -1,12 +1,15 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
   ActivityLogSchema,
+  coerceAppSettings,
   type DashboardStats,
   DashboardStatsSchema,
+  IPC_CHANNELS,
   MacroSchema,
   RecordShortcutInputSchema,
   SaveMacroInputSchema,
+  UpdateAppSettingsInputSchema,
   SystemStatusSchema,
   ToggleMacroInputSchema,
   type ActivityLog,
@@ -15,6 +18,7 @@ import {
   type MacroStatus,
   type SystemStatus
 } from '../shared/api'
+import { t, type I18nPathKey, type Language } from '../shared/i18n'
 import { MOCK_BASE_STATS, MOCK_LOGS, MOCK_MACROS } from '../main/store/mockData'
 
 const macrosState: Macro[] = MOCK_MACROS.map((macro) => ({
@@ -33,6 +37,76 @@ let statusTimer: ReturnType<typeof setInterval> | undefined
 let macroTimer: ReturnType<typeof setInterval> | undefined
 
 const statusCycle: MacroStatus[] = ['RUNNING', 'ACTIVE', 'IDLE', 'PAUSED']
+
+const macroLocalizationKeys: Record<
+  string,
+  {
+    name: I18nPathKey
+    description: I18nPathKey
+  }
+> = {
+  'macro-copy-paste-pro': {
+    name: 'mock.macros.macro-copy-paste-pro.name',
+    description: 'mock.macros.macro-copy-paste-pro.description'
+  },
+  'macro-open-browser': {
+    name: 'mock.macros.macro-open-browser.name',
+    description: 'mock.macros.macro-open-browser.description'
+  },
+  'macro-type-signature': {
+    name: 'mock.macros.macro-type-signature.name',
+    description: 'mock.macros.macro-type-signature.description'
+  },
+  'macro-screenshot-save': {
+    name: 'mock.macros.macro-screenshot-save.name',
+    description: 'mock.macros.macro-screenshot-save.description'
+  },
+  'macro-docker-clean': {
+    name: 'mock.macros.macro-docker-clean.name',
+    description: 'mock.macros.macro-docker-clean.description'
+  }
+}
+
+const logLocalizationKeys: Record<string, I18nPathKey> = {
+  'log-1': 'mock.logs.log-1',
+  'log-2': 'mock.logs.log-2',
+  'log-3': 'mock.logs.log-3',
+  'log-4': 'mock.logs.log-4'
+}
+
+const resolveLanguage = async (): Promise<Language> => {
+  try {
+    const settingsRaw = await ipcRenderer.invoke(IPC_CHANNELS.settings.get)
+    return coerceAppSettings(settingsRaw).language
+  } catch {
+    return 'POLSKI'
+  }
+}
+
+const localizeMacro = (macro: Macro, language: Language): Macro => {
+  const keys = macroLocalizationKeys[macro.id]
+  if (!keys) return macro
+
+  return {
+    ...macro,
+    name: t(language, keys.name),
+    description: t(language, keys.description)
+  }
+}
+
+const localizeLog = (log: ActivityLog, language: Language): ActivityLog => {
+  const key = logLocalizationKeys[log.id]
+  if (!key) return log
+
+  const macroName = log.id === 'log-1' ? t(language, 'mock.macros.macro-copy-paste-pro.name') : undefined
+
+  return {
+    ...log,
+    message: t(language, key, {
+      macroName
+    })
+  }
+}
 
 const timestamp = (): string => {
   const now = new Date()
@@ -71,24 +145,27 @@ const ensureLogTimer = (): void => {
   if (logTimer || logListeners.size === 0) return
 
   logTimer = setInterval(() => {
-    const samples = [
-      "Macro 'Docker Clean' completed stack refresh.",
-      'Input detected: [ALT+F2] mapped to automation slot 0x12.',
-      'Clipboard watcher passed integrity check.',
-      'Background queue synchronized with 0 dropped events.'
-    ]
+    void (async () => {
+      const language = await resolveLanguage()
+      const samples = [
+        t(language, 'runtime.samples.dockerCleanCompleted'),
+        t(language, 'runtime.samples.inputDetected'),
+        t(language, 'runtime.samples.clipboardIntegrity'),
+        t(language, 'runtime.samples.queueSynced')
+      ]
 
-    const levels: Array<'RUN' | 'TRIG' | 'INFO'> = ['RUN', 'TRIG', 'INFO']
-    const nextLog = ActivityLogSchema.parse({
-      id: `log-${Date.now()}`,
-      timestamp: timestamp(),
-      level: levels[Math.floor(Math.random() * levels.length)],
-      message: samples[Math.floor(Math.random() * samples.length)]
-    })
+      const levels: Array<'RUN' | 'TRIG' | 'INFO'> = ['RUN', 'TRIG', 'INFO']
+      const nextLog = ActivityLogSchema.parse({
+        id: `log-${Date.now()}`,
+        timestamp: timestamp(),
+        level: levels[Math.floor(Math.random() * levels.length)],
+        message: samples[Math.floor(Math.random() * samples.length)]
+      })
 
-    logsState.unshift(nextLog)
-    if (logsState.length > 40) logsState.length = 40
-    emitLog(nextLog)
+      logsState.unshift(nextLog)
+      if (logsState.length > 40) logsState.length = 40
+      emitLog(nextLog)
+    })()
   }, 7000)
 }
 
@@ -135,10 +212,14 @@ const cleanupIfUnused = (): void => {
 
 const api: KeybrixApi = {
   macros: {
-    getAll: async () => macrosState.map((macro) => MacroSchema.parse({ ...macro })),
+    getAll: async () => {
+      const language = await resolveLanguage()
+      return macrosState.map((macro) => MacroSchema.parse(localizeMacro({ ...macro }, language)))
+    },
     getById: async (id) => {
+      const language = await resolveLanguage()
       const found = macrosState.find((macro) => macro.id === id)
-      return found ? MacroSchema.parse({ ...found }) : null
+      return found ? MacroSchema.parse(localizeMacro({ ...found }, language)) : null
     },
     save: async (input) => {
       const parsed = SaveMacroInputSchema.parse(input)
@@ -188,6 +269,9 @@ const api: KeybrixApi = {
       const macro = macrosState.find((item) => item.id === id)
       if (!macro) return
 
+      const language = await resolveLanguage()
+      const localizedMacroName = localizeMacro(macro, language).name
+
       macro.status = 'RUNNING'
       macro.isActive = true
       emitMacroStatus(macro.id, 'RUNNING')
@@ -196,17 +280,26 @@ const api: KeybrixApi = {
         id: `log-run-${Date.now()}`,
         timestamp: timestamp(),
         level: 'RUN',
-        message: `Manual run started for '${macro.name}'.`
+        message: t(language, 'runtime.manualRunStarted', {
+          macroName: localizedMacroName
+        })
       })
       logsState.unshift(runLog)
       emitLog(runLog)
+
+      await ipcRenderer
+        .invoke(IPC_CHANNELS.notifications.macroRun, { macroName: localizedMacroName })
+        .catch(() => undefined)
     }
   },
   stats: {
     getDashboardStats: async () => buildStats()
   },
   logs: {
-    getRecent: async () => logsState.map((log) => ActivityLogSchema.parse(log)),
+    getRecent: async () => {
+      const language = await resolveLanguage()
+      return logsState.map((log) => ActivityLogSchema.parse(localizeLog(log, language)))
+    },
     onNewLog: (callback) => {
       logListeners.add(callback)
       ensureLogTimer()
@@ -241,18 +334,45 @@ const api: KeybrixApi = {
   keyboard: {
     recordShortcut: async (input) => {
       const parsed = RecordShortcutInputSchema.parse(input)
+      const language = await resolveLanguage()
 
       const shortcutLog = ActivityLogSchema.parse({
         id: `log-shortcut-${Date.now()}`,
         timestamp: timestamp(),
         level: 'INFO',
-        message: `Shortcut recorded (${parsed.source}): ${parsed.keys}`
+        message: t(language, 'runtime.shortcutRecorded', {
+          source: parsed.source,
+          keys: parsed.keys
+        })
       })
 
       logsState.unshift(shortcutLog)
       emitLog(shortcutLog)
 
       return true
+    }
+  },
+  settings: {
+    get: async () => {
+      try {
+        const result = await ipcRenderer.invoke(IPC_CHANNELS.settings.get)
+        const parsed = coerceAppSettings(result)
+        return parsed
+      } catch (error) {
+        console.error('[settings][preload] get failed:', error)
+        throw error
+      }
+    },
+    update: async (input) => {
+      try {
+        const parsed = UpdateAppSettingsInputSchema.parse(input)
+        const result = await ipcRenderer.invoke(IPC_CHANNELS.settings.update, parsed)
+        const next = coerceAppSettings(result)
+        return next
+      } catch (error) {
+        console.error('[settings][preload] update failed:', error, input)
+        throw error
+      }
     }
   }
 }
