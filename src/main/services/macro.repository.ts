@@ -95,6 +95,34 @@ export class MacroRepository {
 
     return wasUpdated
   }
+
+  updateRuntimeState(id: string, status: Macro['status'], isActive: boolean): Macro | null {
+    let updated: Macro | null = null
+
+    mainStore.updateState((prev) => {
+      const current = prev.macros.byId[id]
+      if (!current) return prev
+
+      updated = {
+        ...current,
+        status,
+        isActive
+      }
+
+      return {
+        ...prev,
+        macros: {
+          ...prev.macros,
+          byId: {
+            ...prev.macros.byId,
+            [id]: updated
+          }
+        }
+      }
+    })
+
+    return updated
+  }
 }
 
 export const macroRepository = new MacroRepository()

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const nativeThemeMock = { themeSource: 'dark' as 'dark' | 'light' }
+const appMock = {
+  setLoginItemSettings: vi.fn()
+}
+
 class MockStore<T extends Record<string, unknown>> {
   private readonly data = new Map<string, unknown>()
 
@@ -21,6 +26,11 @@ class MockStore<T extends Record<string, unknown>> {
 
 vi.mock('electron-store', () => ({
   default: MockStore
+}))
+
+vi.mock('electron', () => ({
+  app: appMock,
+  nativeTheme: nativeThemeMock
 }))
 
 describe('MacroService', () => {
@@ -59,5 +69,37 @@ describe('MacroService', () => {
 
     expect(macroService.reserveShortcut({ keys: 'CTRL+X', source: 'topbar' })).toBe(true)
     expect(macroService.reserveShortcut({ keys: 'CTRL + R', source: 'topbar' })).toBe(false)
+  })
+
+  it('runs macro via main runtime flow when global master is enabled', async () => {
+    const { macroService } = await import('./macro.service')
+
+    const saved = macroService.save({
+      name: 'Run Me',
+      shortcut: 'CTRL+SHIFT+R',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    const result = await macroService.run(saved.id)
+
+    expect(result).toBe(true)
+    expect(macroService.getById(saved.id)?.status).toBe('ACTIVE')
+  })
+
+  it('blocks run when global master is disabled', async () => {
+    const { macroService } = await import('./macro.service')
+    const { settingsService } = await import('./settings.service')
+
+    const saved = macroService.save({
+      name: 'Blocked Run',
+      shortcut: 'CTRL+SHIFT+B',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    settingsService.update({ globalMaster: false })
+    const result = await macroService.run(saved.id)
+
+    expect(result).toBe(false)
+    expect(macroService.getById(saved.id)?.status).toBe('IDLE')
   })
 })

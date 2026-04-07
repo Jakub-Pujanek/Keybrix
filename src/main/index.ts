@@ -5,6 +5,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
   ActivityLogSchema,
   DashboardStatsSchema,
+  MacroStatusChangeEventSchema,
+  SystemStatusSchema,
   type AppSettings,
   IPC_CHANNELS,
   MacroRunNotificationInputSchema,
@@ -18,11 +20,13 @@ import { settingsService } from './services/settings.service'
 import { logsService } from './services/logs.service'
 import { macroService } from './services/macro.service'
 import { statsService } from './services/stats.service'
+import { systemHealthService } from './services/system-health.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let isQuitting = false
+const runtimeDisposers: Array<() => void> = []
 
 // Phase 0 backend guardrails:
 // - Main is the source of truth for runtime and domain data.
@@ -31,6 +35,13 @@ let isQuitting = false
 //   system push channels, keyboard.recordShortcut.
 
 const getSettings = (): AppSettings => settingsService.get()
+
+const broadcastToRenderers = (channel: string, payload: unknown): void => {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue
+    window.webContents.send(channel, payload)
+  }
+}
 
 const resolveTrayIconPath = (): string | null => {
   const iconPathCandidates = [
@@ -146,15 +157,8 @@ function createWindow(): void {
 }
 
 const registerIpcHandlers = (): void => {
-  // Phase B migration map (to be implemented in Main):
-  // - IPC_CHANNELS.macros.getAll / getById / save / delete / toggle / run
-  // - IPC_CHANNELS.stats.get
-  // - IPC_CHANNELS.logs.getRecent
-  // - IPC_CHANNELS.keyboard.recordShortcut
-  // Push channels emitted from Main runtime:
-  // - IPC_CHANNELS.logs.newLog
-  // - IPC_CHANNELS.system.statusUpdate
-  // - IPC_CHANNELS.system.macroStatusChanged
+  // Main handlers keep renderer side-effect free:
+  // validation -> domain service -> typed payload back to preload.
 
   ipcMain.handle(IPC_CHANNELS.settings.get, () => {
     try {
@@ -176,6 +180,10 @@ const registerIpcHandlers = (): void => {
 
       if (mainWindow && shouldSyncTray) {
         syncTrayForSettings(mainWindow)
+      }
+
+      if (parsed.globalMaster === false) {
+        macroService.deactivateAll()
       }
 
       return next
@@ -286,6 +294,35 @@ const registerIpcHandlers = (): void => {
       throw error
     }
   })
+
+  ipcMain.handle(IPC_CHANNELS.macros.run, async (_, id) => {
+    try {
+      if (typeof id !== 'string' || id.length === 0) return false
+
+      const success = await macroService.run(id)
+      if (!success) return false
+
+      const macro = macroService.getById(id)
+      if (!macro) return false
+
+      const settings = getSettings()
+      if (settings.notifyOnMacroRun && Notification.isSupported()) {
+        const notification = new Notification({
+          title: 'KeyBrix',
+          body: t(settings.language, 'notifications.macroStarted', {
+            macroName: macro.name
+          })
+        })
+
+        notification.show()
+      }
+
+      return true
+    } catch (error) {
+      console.error('[macros][main] run failed:', error, id)
+      throw error
+    }
+  })
 }
 
 app.whenReady().then(() => {
@@ -294,6 +331,29 @@ app.whenReady().then(() => {
 
   settingsService.applyLaunchAtStartup(getSettings().launchAtStartup)
   settingsService.applyThemeMode(getSettings().themeMode)
+
+  runtimeDisposers.push(
+    logsService.onNewLog((log) => {
+      const parsed = ActivityLogSchema.parse(log)
+      broadcastToRenderers(IPC_CHANNELS.logs.newLog, parsed)
+    })
+  )
+
+  runtimeDisposers.push(
+    macroService.onStatusChange((event) => {
+      const parsed = MacroStatusChangeEventSchema.parse(event)
+      broadcastToRenderers(IPC_CHANNELS.system.macroStatusChanged, parsed)
+    })
+  )
+
+  runtimeDisposers.push(
+    systemHealthService.onStatusChange((status) => {
+      const parsed = SystemStatusSchema.parse(status)
+      broadcastToRenderers(IPC_CHANNELS.system.statusUpdate, parsed)
+    })
+  )
+
+  systemHealthService.start()
   registerIpcHandlers()
   createWindow()
 
@@ -310,6 +370,10 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  systemHealthService.stop()
+  for (const dispose of runtimeDisposers.splice(0)) {
+    dispose()
+  }
 })
 
 app.on('window-all-closed', () => {

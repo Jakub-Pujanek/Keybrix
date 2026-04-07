@@ -3,7 +3,11 @@ import { createActivityLog, mainStore } from '../store'
 
 const LOG_RETENTION_LIMIT = 200
 
+type LogListener = (log: ActivityLog) => void
+
 export class LogsService {
+  private readonly listeners = new Set<LogListener>()
+
   append(input: Pick<ActivityLog, 'level' | 'message'>): ActivityLog {
     const nextLog = createActivityLog(input)
 
@@ -14,6 +18,10 @@ export class LogsService {
       }
     }))
 
+    for (const listener of this.listeners) {
+      listener(nextLog)
+    }
+
     return nextLog
   }
 
@@ -21,6 +29,13 @@ export class LogsService {
     const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : LOG_RETENTION_LIMIT
     const logs = mainStore.getState().logs.buffer.slice(0, safeLimit)
     return logs.map((log) => ActivityLogSchema.parse(log))
+  }
+
+  onNewLog(listener: LogListener): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
   }
 }
 
