@@ -21,6 +21,7 @@ import { logsService } from './services/logs.service'
 import { macroService } from './services/macro.service'
 import { statsService } from './services/stats.service'
 import { systemHealthService } from './services/system-health.service'
+import { shortcutManager } from './keyboard'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
@@ -184,6 +185,7 @@ const registerIpcHandlers = (): void => {
 
       if (parsed.globalMaster === false) {
         macroService.deactivateAll()
+        shortcutManager.unregisterAll()
       }
 
       return next
@@ -331,6 +333,7 @@ app.whenReady().then(() => {
 
   settingsService.applyLaunchAtStartup(getSettings().launchAtStartup)
   settingsService.applyThemeMode(getSettings().themeMode)
+  macroService.bootstrapShortcuts()
 
   runtimeDisposers.push(
     logsService.onNewLog((log) => {
@@ -371,6 +374,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   isQuitting = true
   systemHealthService.stop()
+  shortcutManager.dispose()
   for (const dispose of runtimeDisposers.splice(0)) {
     dispose()
   }

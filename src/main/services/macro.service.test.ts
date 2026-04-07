@@ -4,6 +4,12 @@ const nativeThemeMock = { themeSource: 'dark' as 'dark' | 'light' }
 const appMock = {
   setLoginItemSettings: vi.fn()
 }
+const globalShortcutMock = {
+  register: vi.fn(() => true),
+  unregister: vi.fn(),
+  unregisterAll: vi.fn(),
+  isRegistered: vi.fn(() => false)
+}
 
 class MockStore<T extends Record<string, unknown>> {
   private readonly data = new Map<string, unknown>()
@@ -30,7 +36,8 @@ vi.mock('electron-store', () => ({
 
 vi.mock('electron', () => ({
   app: appMock,
-  nativeTheme: nativeThemeMock
+  nativeTheme: nativeThemeMock,
+  globalShortcut: globalShortcutMock
 }))
 
 describe('MacroService', () => {

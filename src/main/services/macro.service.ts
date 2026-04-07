@@ -4,6 +4,7 @@ import { macroRunner } from '../macro-runner'
 import { macroRepository } from './macro.repository'
 import { settingsService } from './settings.service'
 import { statsService } from './stats.service'
+import { shortcutManager } from '../keyboard'
 
 const normalizeShortcut = (value: string): string => value.replace(/\s*\+\s*/g, '+').toUpperCase()
 
@@ -11,6 +12,8 @@ type MacroStatusListener = (event: { id: string; newStatus: Macro['status'] }) =
 
 export class MacroService {
   private readonly statusListeners = new Set<MacroStatusListener>()
+  private readonly activeRuns = new Set<string>()
+  private readonly cancelledRuns = new Set<string>()
 
   getAll(): Macro[] {
     return macroRepository.getAll()
@@ -21,6 +24,8 @@ export class MacroService {
   }
 
   save(input: SaveMacroInput): Macro {
+    const previous = input.id ? macroRepository.getById(input.id) : null
+
     const normalizedInput: SaveMacroInput = {
       ...input,
       shortcut: input.shortcut ? normalizeShortcut(input.shortcut) : input.shortcut
@@ -39,6 +44,27 @@ export class MacroService {
       message: `Macro '${macro.name}' saved.`
     })
 
+    const wasActive = previous?.isActive ?? false
+    const isActive = macro.isActive
+
+    if (isActive) {
+      const registered = shortcutManager.registerMacro({
+        macroId: macro.id,
+        shortcut: macro.shortcut,
+        onTrigger: () => {
+          void this.run(macro.id)
+        }
+      })
+
+      if (!registered) {
+        throw new Error('Shortcut conflict detected.')
+      }
+    }
+
+    if (wasActive && !isActive) {
+      shortcutManager.unregisterByMacroId(macro.id)
+    }
+
     this.emitStatus({
       id: macro.id,
       newStatus: macro.status
@@ -49,6 +75,7 @@ export class MacroService {
 
   delete(id: string): boolean {
     const current = macroRepository.getById(id)
+    shortcutManager.unregisterByMacroId(id)
     const deleted = macroRepository.delete(id)
 
     if (deleted) {
@@ -73,6 +100,19 @@ export class MacroService {
       return false
     }
 
+    if (isActive) {
+      const macro = macroRepository.getById(id)
+      if (!macro) return false
+
+      if (!shortcutManager.canRegister(id, macro.shortcut)) {
+        logsService.append({
+          level: 'WARN',
+          message: `Shortcut conflict detected for '${macro.name}'.`
+        })
+        return false
+      }
+    }
+
     const toggled = macroRepository.toggleActive(id, isActive)
 
     if (toggled) {
@@ -83,6 +123,27 @@ export class MacroService {
       })
 
       if (macro) {
+        if (isActive) {
+          const registered = shortcutManager.registerMacro({
+            macroId: macro.id,
+            shortcut: macro.shortcut,
+            onTrigger: () => {
+              void this.run(macro.id)
+            }
+          })
+
+          if (!registered) {
+            macroRepository.toggleActive(id, false)
+            logsService.append({
+              level: 'WARN',
+              message: `Shortcut registration failed for '${macro.name}'.`
+            })
+            return false
+          }
+        } else {
+          shortcutManager.unregisterByMacroId(macro.id)
+        }
+
         this.emitStatus({
           id: macro.id,
           newStatus: macro.status
@@ -94,6 +155,12 @@ export class MacroService {
   }
 
   deactivateAll(): void {
+    for (const id of this.activeRuns) {
+      this.cancelledRuns.add(id)
+    }
+
+    shortcutManager.unregisterAll()
+
     for (const macro of this.getAll()) {
       const next = macroRepository.updateRuntimeState(macro.id, 'IDLE', false)
       if (!next) continue
@@ -101,7 +168,36 @@ export class MacroService {
     }
   }
 
+  bootstrapShortcuts(): void {
+    for (const macro of this.getAll()) {
+      if (!macro.isActive) continue
+
+      const registered = shortcutManager.registerMacro({
+        macroId: macro.id,
+        shortcut: macro.shortcut,
+        onTrigger: () => {
+          void this.run(macro.id)
+        }
+      })
+
+      if (!registered) {
+        logsService.append({
+          level: 'WARN',
+          message: `Shortcut bootstrap failed for '${macro.name}'.`
+        })
+      }
+    }
+  }
+
   async run(id: string): Promise<boolean> {
+    if (this.activeRuns.has(id)) {
+      logsService.append({
+        level: 'WARN',
+        message: `Macro '${id}' is already running.`
+      })
+      return false
+    }
+
     const macro = macroRepository.getById(id)
     if (!macro) return false
 
@@ -117,6 +213,9 @@ export class MacroService {
     const running = macroRepository.updateRuntimeState(id, 'RUNNING', true)
     if (!running) return false
 
+    this.activeRuns.add(id)
+    this.cancelledRuns.delete(id)
+
     this.emitStatus({ id, newStatus: 'RUNNING' })
 
     const result = await macroRunner.runMacro({
@@ -129,11 +228,19 @@ export class MacroService {
       onLog: ({ level, message }) => {
         logsService.append({ level, message })
       },
-      isGlobalMasterEnabled: () => settingsService.get().globalMaster
+      isGlobalMasterEnabled: () => settingsService.get().globalMaster,
+      shouldAbort: () => this.cancelledRuns.has(id)
     })
 
-    const finalStatus = result.success ? 'ACTIVE' : 'IDLE'
-    const finalActive = result.success
+    this.activeRuns.delete(id)
+
+    const cancelled = this.cancelledRuns.has(id)
+    if (cancelled) {
+      this.cancelledRuns.delete(id)
+    }
+
+    const finalStatus = !cancelled && result.success ? 'ACTIVE' : 'IDLE'
+    const finalActive = !cancelled && result.success
     const finished = macroRepository.updateRuntimeState(id, finalStatus, finalActive)
 
     if (finished) {
