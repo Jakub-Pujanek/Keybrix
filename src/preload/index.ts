@@ -4,7 +4,6 @@ import {
   ActivityLogSchema,
   DEFAULT_APP_SETTINGS,
   coerceAppSettings,
-  type DashboardStats,
   DashboardStatsSchema,
   IPC_CHANNELS,
   MacroSchema,
@@ -21,7 +20,17 @@ import {
   type SystemStatus
 } from '../shared/api'
 import { t, type I18nPathKey, type Language } from '../shared/i18n'
-import { MOCK_BASE_STATS, MOCK_LOGS, MOCK_MACROS } from '../main/store/mockData'
+import { MOCK_LOGS, MOCK_MACROS } from '../main/store/mockData'
+
+/*
+ * Phase 0 -> Phase D migration note:
+ * This file still contains temporary mock runtime state and timers.
+ * Target end-state:
+ * 1) Keep only contextBridge API with ipcRenderer invoke/subscribe wrappers.
+ * 2) Remove in-memory domain state (macrosState/logsState).
+ * 3) Remove domain timers for log/status/macro simulation.
+ * 4) Move all domain behavior to Electron Main services/runtime.
+ */
 
 const macrosState: Macro[] = MOCK_MACROS.map((macro) => ({
   ...macro,
@@ -74,13 +83,6 @@ const macroLocalizationKeys: Record<
   }
 }
 
-const logLocalizationKeys: Record<string, I18nPathKey> = {
-  'log-1': 'mock.logs.log-1',
-  'log-2': 'mock.logs.log-2',
-  'log-3': 'mock.logs.log-3',
-  'log-4': 'mock.logs.log-4'
-}
-
 const resolveLanguage = async (): Promise<Language> => {
   try {
     const settingsRaw = await ipcRenderer.invoke(IPC_CHANNELS.settings.get)
@@ -122,21 +124,6 @@ const localizeMacro = (macro: Macro, language: Language): Macro => {
   }
 }
 
-const localizeLog = (log: ActivityLog, language: Language): ActivityLog => {
-  const key = logLocalizationKeys[log.id]
-  if (!key) return log
-
-  const macroName =
-    log.id === 'log-1' ? t(language, 'mock.macros.macro-copy-paste-pro.name') : undefined
-
-  return {
-    ...log,
-    message: t(language, key, {
-      macroName
-    })
-  }
-}
-
 const timestamp = (): string => {
   const now = new Date()
   const hh = String(now.getHours()).padStart(2, '0')
@@ -155,19 +142,6 @@ const emitSystemStatus = (status: SystemStatus): void => {
 
 const emitMacroStatus = (id: string, newStatus: MacroStatus): void => {
   for (const listener of macroStatusListeners) listener(id, newStatus)
-}
-
-const buildStats = (): DashboardStats => {
-  const totalAutomations = macrosState.length
-  const activeNow = macrosState.filter((macro) => macro.isActive).length
-  const successRate = (MOCK_BASE_STATS.successfulRuns / MOCK_BASE_STATS.totalRuns) * 100
-
-  return DashboardStatsSchema.parse({
-    totalAutomations,
-    timeSavedMinutes: MOCK_BASE_STATS.timeSavedMinutes,
-    successRate,
-    activeNow
-  })
 }
 
 const deactivateAllMacros = (): void => {
@@ -258,77 +232,99 @@ const cleanupIfUnused = (): void => {
 const api: KeybrixApi = {
   macros: {
     getAll: async () => {
-      const language = await resolveLanguage()
-      return macrosState.map((macro) => MacroSchema.parse(localizeMacro({ ...macro }, language)))
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.macros.getAll)
+      const parsed = Array.isArray(result) ? result.map((macro) => MacroSchema.parse(macro)) : []
+
+      macrosState.length = 0
+      macrosState.push(
+        ...parsed.map((macro) => ({
+          ...macro,
+          blocksJson: { ...macro.blocksJson }
+        }))
+      )
+
+      return parsed
     },
     getById: async (id) => {
-      const language = await resolveLanguage()
-      const found = macrosState.find((macro) => macro.id === id)
-      return found ? MacroSchema.parse(localizeMacro({ ...found }, language)) : null
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.macros.getById, id)
+      if (!result) return null
+
+      const parsed = MacroSchema.parse(result)
+      const index = macrosState.findIndex((macro) => macro.id === parsed.id)
+
+      if (index >= 0) {
+        macrosState[index] = {
+          ...parsed,
+          blocksJson: { ...parsed.blocksJson }
+        }
+      } else {
+        macrosState.unshift({
+          ...parsed,
+          blocksJson: { ...parsed.blocksJson }
+        })
+      }
+
+      return parsed
     },
     save: async (input) => {
       const parsed = SaveMacroInputSchema.parse(input)
-      const existing = parsed.id ? macrosState.find((item) => item.id === parsed.id) : undefined
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.macros.save, parsed)
+      const saved = MacroSchema.parse(result)
 
-      if (existing) {
-        const nextMacro = MacroSchema.parse({
-          ...existing,
-          ...parsed,
-          id: existing.id
+      const index = macrosState.findIndex((macro) => macro.id === saved.id)
+      if (index >= 0) {
+        macrosState[index] = {
+          ...saved,
+          blocksJson: { ...saved.blocksJson }
+        }
+      } else {
+        macrosState.unshift({
+          ...saved,
+          blocksJson: { ...saved.blocksJson }
         })
-        Object.assign(existing, nextMacro)
-        return nextMacro
       }
 
-      const created = MacroSchema.parse({
-        id: parsed.id ?? `macro-${Date.now()}`,
-        name: parsed.name ?? 'Untitled Macro',
-        description: parsed.description,
-        shortcut: parsed.shortcut ?? 'UNASSIGNED',
-        isActive: parsed.isActive ?? false,
-        status: parsed.status ?? 'IDLE',
-        blocksJson: parsed.blocksJson ?? { commands: [] }
-      })
-
-      macrosState.unshift(created)
-      return created
+      return saved
     },
     delete: async (id) => {
-      const before = macrosState.length
+      const deleted = Boolean(await ipcRenderer.invoke(IPC_CHANNELS.macros.delete, id))
+      if (!deleted) return false
+
       const next = macrosState.filter((macro) => macro.id !== id)
       macrosState.length = 0
       macrosState.push(...next)
-      return before !== macrosState.length
+      return true
     },
     toggle: async (id, isActive) => {
       const parsed = ToggleMacroInputSchema.parse({ id, isActive })
+      const success = Boolean(
+        await ipcRenderer.invoke(IPC_CHANNELS.macros.toggle, parsed.id, parsed.isActive)
+      )
+      if (!success) return false
+
       const macro = macrosState.find((item) => item.id === parsed.id)
-      if (!macro) return false
-
-      if (parsed.isActive) {
-        const settings = await resolveSettings()
-        if (!settings.globalMaster) {
-          const language = settings.language
-          const blockedLog = createRuntimeLog({
-            level: 'WARN',
-            message: t(language, 'runtime.globalMasterBlockedToggle', {
-              macroName: localizeMacro(macro, language).name
-            })
-          })
-
-          logsState.unshift(blockedLog)
-          emitLog(blockedLog)
-          return false
-        }
+      if (macro) {
+        macro.isActive = parsed.isActive
+        macro.status = parsed.isActive ? 'ACTIVE' : 'IDLE'
+        emitMacroStatus(macro.id, macro.status)
       }
 
-      macro.isActive = parsed.isActive
-      macro.status = parsed.isActive ? 'ACTIVE' : 'IDLE'
-      emitMacroStatus(macro.id, macro.status)
       return true
     },
     runManually: async (id) => {
-      const macro = macrosState.find((item) => item.id === id)
+      let macro = macrosState.find((item) => item.id === id)
+      if (!macro) {
+        const result = await ipcRenderer.invoke(IPC_CHANNELS.macros.getById, id)
+        if (result) {
+          const parsed = MacroSchema.parse(result)
+          macrosState.unshift({
+            ...parsed,
+            blocksJson: { ...parsed.blocksJson }
+          })
+          macro = macrosState.find((item) => item.id === id)
+        }
+      }
+
       if (!macro) return
 
       const settings = await resolveSettings()
@@ -424,12 +420,20 @@ const api: KeybrixApi = {
     }
   },
   stats: {
-    getDashboardStats: async () => buildStats()
+    getDashboardStats: async () => {
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.stats.get)
+      return DashboardStatsSchema.parse(result)
+    }
   },
   logs: {
     getRecent: async () => {
-      const language = await resolveLanguage()
-      return logsState.map((log) => ActivityLogSchema.parse(localizeLog(log, language)))
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.logs.getRecent)
+      const parsed = Array.isArray(result) ? result.map((log) => ActivityLogSchema.parse(log)) : []
+
+      logsState.length = 0
+      logsState.push(...parsed)
+
+      return parsed
     },
     onNewLog: (callback) => {
       logListeners.add(callback)
@@ -465,6 +469,11 @@ const api: KeybrixApi = {
   keyboard: {
     recordShortcut: async (input) => {
       const parsed = RecordShortcutInputSchema.parse(input)
+      const reserved = Boolean(
+        await ipcRenderer.invoke(IPC_CHANNELS.keyboard.recordShortcut, parsed)
+      )
+      if (!reserved) return false
+
       const language = await resolveLanguage()
 
       const shortcutLog = ActivityLogSchema.parse({

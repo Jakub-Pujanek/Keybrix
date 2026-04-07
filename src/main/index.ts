@@ -3,17 +3,32 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
+  ActivityLogSchema,
+  DashboardStatsSchema,
   type AppSettings,
   IPC_CHANNELS,
   MacroRunNotificationInputSchema,
+  MacroSchema,
+  RecordShortcutInputSchema,
+  SaveMacroInputSchema,
+  ToggleMacroInputSchema,
   UpdateAppSettingsInputSchema
 } from '../shared/api'
 import { settingsService } from './services/settings.service'
+import { logsService } from './services/logs.service'
+import { macroService } from './services/macro.service'
+import { statsService } from './services/stats.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let isQuitting = false
+
+// Phase 0 backend guardrails:
+// - Main is the source of truth for runtime and domain data.
+// - Preload must become a thin IPC bridge (no domain timers/state).
+// - Next IPC scope for Phase B: macros.*, stats.get, logs.getRecent,
+//   system push channels, keyboard.recordShortcut.
 
 const getSettings = (): AppSettings => settingsService.get()
 
@@ -131,6 +146,16 @@ function createWindow(): void {
 }
 
 const registerIpcHandlers = (): void => {
+  // Phase B migration map (to be implemented in Main):
+  // - IPC_CHANNELS.macros.getAll / getById / save / delete / toggle / run
+  // - IPC_CHANNELS.stats.get
+  // - IPC_CHANNELS.logs.getRecent
+  // - IPC_CHANNELS.keyboard.recordShortcut
+  // Push channels emitted from Main runtime:
+  // - IPC_CHANNELS.logs.newLog
+  // - IPC_CHANNELS.system.statusUpdate
+  // - IPC_CHANNELS.system.macroStatusChanged
+
   ipcMain.handle(IPC_CHANNELS.settings.get, () => {
     try {
       return getSettings()
@@ -178,6 +203,88 @@ const registerIpcHandlers = (): void => {
 
     notification.show()
     return true
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.getAll, () => {
+    try {
+      const macros = macroService.getAll()
+      return macros.map((macro) => MacroSchema.parse(macro))
+    } catch (error) {
+      console.error('[macros][main] getAll failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.getById, (_, id) => {
+    try {
+      if (typeof id !== 'string' || id.length === 0) return null
+      const macro = macroService.getById(id)
+      return macro ? MacroSchema.parse(macro) : null
+    } catch (error) {
+      console.error('[macros][main] getById failed:', error, id)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.save, (_, input) => {
+    try {
+      const parsed = SaveMacroInputSchema.parse(input)
+      const macro = macroService.save(parsed)
+      return MacroSchema.parse(macro)
+    } catch (error) {
+      console.error('[macros][main] save failed:', error, input)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.delete, (_, id) => {
+    try {
+      if (typeof id !== 'string' || id.length === 0) return false
+      return macroService.delete(id)
+    } catch (error) {
+      console.error('[macros][main] delete failed:', error, id)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.toggle, (_, id, isActive) => {
+    try {
+      const parsed = ToggleMacroInputSchema.parse({ id, isActive })
+      return macroService.toggle(parsed.id, parsed.isActive)
+    } catch (error) {
+      console.error('[macros][main] toggle failed:', error, { id, isActive })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.stats.get, () => {
+    try {
+      const stats = statsService.getDashboardStats()
+      return DashboardStatsSchema.parse(stats)
+    } catch (error) {
+      console.error('[stats][main] get failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.logs.getRecent, () => {
+    try {
+      const logs = logsService.getRecent()
+      return logs.map((log) => ActivityLogSchema.parse(log))
+    } catch (error) {
+      console.error('[logs][main] getRecent failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.keyboard.recordShortcut, (_, input) => {
+    try {
+      const parsed = RecordShortcutInputSchema.parse(input)
+      return macroService.reserveShortcut(parsed)
+    } catch (error) {
+      console.error('[keyboard][main] recordShortcut failed:', error, input)
+      throw error
+    }
   })
 }
 

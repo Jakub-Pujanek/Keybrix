@@ -1,6 +1,10 @@
 export class MacroRunner {
   async runMacroById(id: string): Promise<void> {
-    // no-op (clean template implementation)
+    // Phase C target:
+    // - parse commands from blocksJson
+    // - enforce delayMs and stopOnError policy
+    // - support cancellation (globalMaster off / manual stop)
+    // - emit runtime logs and macro status updates from Main
     void id
   }
 }
