@@ -4,8 +4,10 @@ import {
   EditorNodeSchema,
   type EditorBlockType,
   type EditorNode,
+  type ManualRunResult,
   type Macro
 } from '../../../shared/api'
+import { compileNodesToRuntimeCommands } from '../../../shared/macro-runtime'
 
 type RecordingSource = 'topbar' | 'start-block' | 'press-key-block'
 
@@ -21,6 +23,7 @@ type EditorState = {
   heldKeys: string[]
   comboKeys: string[]
   loadEditorMacro: (macroId?: string) => Promise<void>
+  setMacroTitle: (nextTitle: string) => void
   addNode: (type: EditorBlockType, position?: { x: number; y: number }) => void
   setNodePosition: (nodeId: string, x: number, y: number) => void
   setManyNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void
@@ -35,7 +38,17 @@ type EditorState = {
   handleShortcutKeyDown: (event: KeyboardEvent) => void
   handleShortcutKeyUp: (event: KeyboardEvent) => Promise<void>
   saveMacroFromEditor: () => Promise<boolean>
-  testRunMacro: () => Promise<void>
+  testRunMacro: (context?: { attemptId?: string }) => Promise<ManualRunResult>
+}
+
+const blockTitleByType: Record<EditorBlockType, string> = {
+  START: 'Start',
+  PRESS_KEY: 'Press Key',
+  WAIT: 'Wait',
+  MOUSE_CLICK: 'Mouse Click',
+  TYPE_TEXT: 'Type Text',
+  REPEAT: 'Repeat',
+  INFINITE_LOOP: 'Infinite Loop'
 }
 
 const defaultNodes: EditorNode[] = [
@@ -79,7 +92,7 @@ const defaultNodes: EditorNode[] = [
     y: 347,
     nextId: 'node-type',
     payload: {
-      label: 'MOUSE CLICK',
+      label: 'Mouse Click',
       x: 500,
       y: 300,
       button: 'LEFT'
@@ -109,6 +122,12 @@ const defaultNodes: EditorNode[] = [
   }
 ]
 
+const cloneNodes = (nodes: EditorNode[]): EditorNode[] =>
+  nodes.map((node) => ({
+    ...node,
+    payload: { ...node.payload }
+  }))
+
 const normalizeKey = (code: string): string => {
   if (code === 'ControlLeft' || code === 'ControlRight') return 'CTRL'
   if (code === 'ShiftLeft' || code === 'ShiftRight') return 'SHIFT'
@@ -118,6 +137,19 @@ const normalizeKey = (code: string): string => {
   if (code.startsWith('Digit')) return code.replace('Digit', '')
   if (code === 'Space') return 'SPACE'
   return code.toUpperCase()
+}
+
+const isModifierCode = (code: string): boolean => {
+  return (
+    code === 'ControlLeft' ||
+    code === 'ControlRight' ||
+    code === 'ShiftLeft' ||
+    code === 'ShiftRight' ||
+    code === 'AltLeft' ||
+    code === 'AltRight' ||
+    code === 'MetaLeft' ||
+    code === 'MetaRight'
+  )
 }
 
 const formatShortcut = (codes: string[]): string => {
@@ -130,14 +162,23 @@ const firstMacro = async (): Promise<Macro | null> => {
   return all.length > 0 ? all[0] : null
 }
 
-const normalizeLoadedNodes = (nodes: EditorNode[]): EditorNode[] => {
+const normalizeLoadedNodes = (nodes: EditorNode[], macroShortcut: string): EditorNode[] => {
   return nodes.map((node) => {
+    const defaultLabel = blockTitleByType[node.type]
+    const incomingLabel = typeof node.payload.label === 'string' ? node.payload.label : undefined
+
+    const normalizedLabel =
+      !incomingLabel || incomingLabel === node.type.replaceAll('_', ' ')
+        ? defaultLabel
+        : incomingLabel
+
     if (node.type === 'START') {
       return {
         ...node,
         payload: {
           ...node.payload,
-          label: 'Start'
+          label: normalizedLabel,
+          shortcut: macroShortcut
         }
       }
     }
@@ -162,7 +203,13 @@ const normalizeLoadedNodes = (nodes: EditorNode[]): EditorNode[] => {
       }
     }
 
-    return node
+    return {
+      ...node,
+      payload: {
+        ...node.payload,
+        label: normalizedLabel
+      }
+    }
   })
 }
 
@@ -206,7 +253,7 @@ const collectChainIds = (nodes: EditorNode[], rootId: string): Set<string> => {
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  nodes: defaultNodes,
+  nodes: cloneNodes(defaultNodes),
   zoom: 1,
   activeMacroId: null,
   macroTitle: 'My First Macro',
@@ -222,18 +269,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!selected) return
 
     const parsedNodes = EditorDocumentSchema.safeParse(selected.blocksJson)
+    const formattedShortcut = selected.shortcut.replace(/\+/g, ' + ')
 
     const loadedNodes = parsedNodes.success
-      ? normalizeLoadedNodes(parsedNodes.data.nodes)
-      : defaultNodes
+      ? normalizeLoadedNodes(parsedNodes.data.nodes, formattedShortcut)
+      : []
 
     set({
       activeMacroId: selected.id,
       macroTitle: selected.name,
-      shortcut: selected.shortcut.replace(/\+/g, ' + '),
+      shortcut: formattedShortcut,
       nodes: loadedNodes,
       zoom: parsedNodes.success ? parsedNodes.data.zoom : 1
     })
+  },
+
+  setMacroTitle: (nextTitle) => {
+    set({ macroTitle: nextTitle.slice(0, 60) })
   },
 
   addNode: (type, position) => {
@@ -245,7 +297,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       y: position?.y ?? 120,
       nextId: null,
       payload: {
-        label: type.replace('_', ' ')
+        label: blockTitleByType[type]
       }
     })
 
@@ -266,10 +318,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (type === 'REPEAT') {
       nextNode.payload.count = 2
     }
-    if (type === 'INFINITE_LOOP') {
-      nextNode.payload.label = 'Infinite Loop'
-    }
-
     set((state) => ({ nodes: [...state.nodes, nextNode] }))
   },
 
@@ -340,7 +388,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearNodes: () => {
-    set({ nodes: defaultNodes })
+    set({ nodes: [] })
   },
 
   setZoom: (zoom) => {
@@ -375,7 +423,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     event.preventDefault()
 
     const nextHeld = heldKeys.includes(event.code) ? heldKeys : [...heldKeys, event.code]
-    const nextCombo = comboKeys.includes(event.code) ? comboKeys : [...comboKeys, event.code]
+    const nextComboBase = comboKeys.includes(event.code) ? comboKeys : [...comboKeys, event.code]
+    const modifiers = nextComboBase.filter((code) => isModifierCode(code))
+    const primaries = nextComboBase.filter((code) => !isModifierCode(code))
+    const nextCombo =
+      primaries.length > 0 ? [...modifiers, primaries[primaries.length - 1]] : modifiers
 
     set({ heldKeys: nextHeld, comboKeys: nextCombo })
   },
@@ -445,15 +497,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveMacroFromEditor: async () => {
     const { activeMacroId, macroTitle, shortcut, nodes, zoom } = get()
     const orderedNodes = orderNodesByConnections(nodes)
+    const synchronizedNodes = orderedNodes.map((node) =>
+      node.type === 'START'
+        ? {
+            ...node,
+            payload: {
+              ...node.payload,
+              shortcut
+            }
+          }
+        : node
+    )
+    const commands = compileNodesToRuntimeCommands(synchronizedNodes)
 
     const saved = await window.api.macros.save({
       id: activeMacroId ?? undefined,
       name: macroTitle,
       shortcut: shortcut.replace(/\s\+\s/g, '+'),
-      isActive: true,
-      status: 'ACTIVE',
+      isActive: false,
+      status: 'IDLE',
       blocksJson: {
-        nodes: orderedNodes,
+        commands,
+        nodes: synchronizedNodes,
         zoom
       }
     })
@@ -462,10 +527,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return true
   },
 
-  testRunMacro: async () => {
-    const { activeMacroId } = get()
-    if (!activeMacroId) return
+  testRunMacro: async (context) => {
+    let failedStage: 'save' | 'run' = 'save'
 
-    await window.api.macros.runManually(activeMacroId)
+    try {
+      const saved = await get().saveMacroFromEditor()
+      if (!saved) {
+        return {
+          runId: globalThis.crypto.randomUUID(),
+          success: false,
+          reasonCode: 'SAVE_FAILED'
+        }
+      }
+
+      const { activeMacroId } = get()
+      if (!activeMacroId) {
+        return {
+          runId: globalThis.crypto.randomUUID(),
+          success: false,
+          reasonCode: 'MACRO_NOT_FOUND'
+        }
+      }
+
+      failedStage = 'run'
+      return await window.api.macros.runManually(activeMacroId, {
+        attemptId: context?.attemptId
+      })
+    } catch (error) {
+      console.error('[editor.store] testRunMacro failed', {
+        stage: failedStage,
+        error
+      })
+
+      const debugMessage = error instanceof Error ? error.message : 'unknown editor.store failure'
+
+      return {
+        runId: globalThis.crypto.randomUUID(),
+        success: false,
+        reasonCode: failedStage === 'save' ? 'SAVE_FAILED' : 'IPC_ERROR',
+        debugMessage
+      }
+    }
   }
 }))

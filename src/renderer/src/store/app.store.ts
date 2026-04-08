@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { DashboardStats, SystemStatus } from '../../../shared/api'
 
-type ScreenName = 'dashboard' | 'editor' | 'settings'
+type ScreenName = 'dashboard' | 'editor' | 'settings' | 'wayland-guide'
 
 type AppState = {
   activeScreen: ScreenName

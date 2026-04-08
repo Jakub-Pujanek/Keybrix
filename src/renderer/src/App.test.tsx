@@ -1,8 +1,33 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
-import type { KeybrixApi } from '../../shared/api'
+import { DEFAULT_APP_SETTINGS, type KeybrixApi, type RuntimeSessionInfo } from '../../shared/api'
+import {
+  useActivityStore,
+  useAppStore,
+  useMacroStore,
+  useSessionStore,
+  useSettingsStore
+} from './store'
 
 let emitRealtimeLog: ((message: string) => void) | null = null
+let initialSessionType: RuntimeSessionInfo['sessionType'] = 'X11'
+let refreshSessionType: RuntimeSessionInfo['sessionType'] = 'X11'
+let refreshPreviousSessionType: RuntimeSessionInfo['sessionType'] = 'X11'
+let refreshCallCount = 0
+let nextRefreshSessionFactory:
+  | (() => Promise<{
+      previousSessionType: RuntimeSessionInfo['sessionType']
+      sessionInfo: RuntimeSessionInfo
+      changed: boolean
+    }>)
+  | null = null
+
+const buildSessionInfo = (sessionType: RuntimeSessionInfo['sessionType']): RuntimeSessionInfo => ({
+  sessionType,
+  rawSession: sessionType.toLowerCase(),
+  detectedAt: new Date().toISOString(),
+  isInputInjectionSupported: sessionType === 'X11'
+})
 
 const mockApi: KeybrixApi = {
   macros: {
@@ -23,7 +48,11 @@ const mockApi: KeybrixApi = {
     },
     delete: async () => true,
     toggle: async () => true,
-    runManually: async () => {}
+    runManually: async () => ({
+      runId: 'run-test',
+      success: true,
+      reasonCode: 'SUCCESS'
+    })
   },
   stats: {
     getDashboardStats: async () => ({
@@ -58,6 +87,19 @@ const mockApi: KeybrixApi = {
     }
   },
   system: {
+    getSessionInfo: async () => buildSessionInfo(initialSessionType),
+    refreshSessionInfo: async () => {
+      refreshCallCount += 1
+      if (nextRefreshSessionFactory) {
+        return nextRefreshSessionFactory()
+      }
+
+      return {
+        previousSessionType: refreshPreviousSessionType,
+        sessionInfo: buildSessionInfo(refreshSessionType),
+        changed: refreshPreviousSessionType !== refreshSessionType
+      }
+    },
     onStatusUpdate: (callback) => {
       callback('OPTIMAL')
       return () => {}
@@ -95,11 +137,37 @@ const mockApi: KeybrixApi = {
 
 describe('App dashboard', () => {
   beforeEach(() => {
+    useAppStore.setState({
+      activeScreen: 'dashboard',
+      systemStatus: 'OPTIMAL',
+      dashboardStats: null
+    })
+    useSessionStore.setState({
+      sessionInfo: null,
+      isChecking: false,
+      lastBlockedAt: null,
+      showSuccessUntil: null,
+      guideReturnScreen: null
+    })
+    useMacroStore.setState({ macros: [], isLoading: false, loadError: null })
+    useActivityStore.setState({ logs: [], isLoading: false })
+    useSettingsStore.setState({
+      appSettings: DEFAULT_APP_SETTINGS,
+      isLoading: false,
+      language: DEFAULT_APP_SETTINGS.language
+    })
+
+    initialSessionType = 'X11'
+    refreshSessionType = 'X11'
+    refreshPreviousSessionType = 'X11'
+    refreshCallCount = 0
+    nextRefreshSessionFactory = null
     window.api = mockApi
     emitRealtimeLog = null
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     emitRealtimeLog = null
   })
 
@@ -129,5 +197,77 @@ describe('App dashboard', () => {
     await waitFor(() => {
       expect(screen.getByText('tick')).toBeInTheDocument()
     })
+  })
+
+  it('shows Wayland banner and opens guide screen', async () => {
+    initialSessionType = 'WAYLAND'
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Wykryto sesje Wayland')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jak przelaczyc na X11' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wayland-guide-screen')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wroc' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-screen')).toBeInTheDocument()
+    })
+  })
+
+  it('refreshes session from check-now and hides success banner after ttl', async () => {
+    initialSessionType = 'WAYLAND'
+    refreshPreviousSessionType = 'WAYLAND'
+    refreshSessionType = 'X11'
+
+    let resolveRefresh: (() => void) | null = null
+    nextRefreshSessionFactory = () =>
+      new Promise((resolve) => {
+        resolveRefresh = () => {
+          resolve({
+            previousSessionType: 'WAYLAND',
+            sessionInfo: buildSessionInfo('X11'),
+            changed: true
+          })
+        }
+      })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Wykryto sesje Wayland')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sprawdz sesje teraz' }))
+    expect(refreshCallCount).toBe(1)
+
+    await waitFor(() => {
+      expect(screen.getByText('Sprawdzanie aktualnej sesji')).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      resolveRefresh?.()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Potwierdzono sesje X11')).toBeInTheDocument()
+    })
+
+    act(() => {
+      useSessionStore.setState({ showSuccessUntil: Date.now() + 10 })
+    })
+
+    await waitFor(
+      () => {
+        expect(screen.queryByText('Potwierdzono sesje X11')).not.toBeInTheDocument()
+      },
+      { timeout: 1000 }
+    )
   })
 })

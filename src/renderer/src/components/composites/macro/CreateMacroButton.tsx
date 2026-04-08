@@ -4,14 +4,19 @@ import { useI18n } from '../../../lib/useI18n'
 
 type CreateMacroButtonProps = {
   compact?: boolean
+  onClick?: () => void
 }
 
-function CreateMacroButton({ compact = false }: CreateMacroButtonProps): React.JSX.Element {
+function CreateMacroButton({
+  compact = false,
+  onClick
+}: CreateMacroButtonProps): React.JSX.Element {
   const { tx } = useI18n()
 
   return (
     <Button
       variant="primary"
+      onClick={onClick}
       className={compact ? 'h-12 w-full rounded-lg text-xs tracking-[0.14em] uppercase' : ''}
     >
       {compact ? (

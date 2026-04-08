@@ -1,4 +1,4 @@
-import { Pencil, Play } from 'lucide-react'
+import { Pencil, Play, Trash2 } from 'lucide-react'
 import Button from '../../primitives/Button'
 import ShortcutTag from '../../primitives/ShortcutTag'
 import ToggleSwitch from '../../primitives/ToggleSwitch'
@@ -14,6 +14,8 @@ type MacroCardProps = {
   status: string
   onToggle: (id: string, value: boolean) => void
   onRun: (id: string) => void
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
 }
 
 function MacroCard({
@@ -24,7 +26,9 @@ function MacroCard({
   isActive,
   status,
   onToggle,
-  onRun
+  onRun,
+  onEdit,
+  onDelete
 }: MacroCardProps): React.JSX.Element {
   const { tx } = useI18n()
   const statusKey = `macro.status.${status}` as `macro.status.${MacroStatus}`
@@ -55,8 +59,25 @@ function MacroCard({
           >
             <Play className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" className="h-8 w-8 px-0">
+          <Button
+            variant="ghost"
+            className="h-8 w-8 px-0"
+            onClick={() => {
+              onEdit(id)
+            }}
+            aria-label="Edit macro"
+          >
             <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-8 w-8 px-0"
+            onClick={() => {
+              onDelete(id)
+            }}
+            aria-label="Delete macro"
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
         <span className="text-[11px] font-semibold tracking-[0.15em] text-[rgb(var(--kb-accent-rgb))] uppercase">

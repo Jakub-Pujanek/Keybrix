@@ -1,8 +1,11 @@
 import ElectronStore from 'electron-store'
 import { z } from 'zod'
 import {
+  AuditEventSchema,
   ActivityLogSchema,
   MacroSchema,
+  type AuditAction,
+  type AuditEvent,
   type ActivityLog,
   type Macro,
   type SaveMacroInput
@@ -20,14 +23,26 @@ const MainStatsCountersSchema = z.object({
 
 export type MainStatsCounters = z.infer<typeof MainStatsCountersSchema>
 
+const MacroStorageMigrationSchema = z.object({
+  status: z.enum(['PENDING', 'COMPLETED']),
+  migratedAt: z.string().datetime().optional(),
+  migratedCount: z.number().int().nonnegative()
+})
+
+export type MacroStorageMigration = z.infer<typeof MacroStorageMigrationSchema>
+
 const MainStoreStateSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   macros: z.object({
     byId: z.record(z.string(), MacroSchema),
     order: z.array(z.string())
   }),
+  macroStorageMigration: MacroStorageMigrationSchema,
   logs: z.object({
     buffer: z.array(ActivityLogSchema)
+  }),
+  audit: z.object({
+    buffer: z.array(AuditEventSchema)
   }),
   stats: z.object({
     counters: MainStatsCountersSchema
@@ -37,12 +52,19 @@ const MainStoreStateSchema = z.object({
 export type MainStoreState = z.infer<typeof MainStoreStateSchema>
 
 export const INITIAL_MAIN_STORE_STATE: MainStoreState = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   macros: {
     byId: {},
     order: []
   },
+  macroStorageMigration: {
+    status: 'PENDING',
+    migratedCount: 0
+  },
   logs: {
+    buffer: []
+  },
+  audit: {
     buffer: []
   },
   stats: {
@@ -64,9 +86,21 @@ const MainStoreMigrationInputSchema = z
         order: z.array(z.string()).optional()
       })
       .optional(),
+    macroStorageMigration: z
+      .object({
+        status: z.enum(['PENDING', 'COMPLETED']).optional(),
+        migratedAt: z.string().datetime().optional(),
+        migratedCount: z.number().int().nonnegative().optional()
+      })
+      .optional(),
     logs: z
       .object({
         buffer: z.array(ActivityLogSchema).optional()
+      })
+      .optional(),
+    audit: z
+      .object({
+        buffer: z.array(AuditEventSchema).optional()
       })
       .optional(),
     stats: z
@@ -104,15 +138,24 @@ const migrateState = (input: unknown): MainStoreState => {
 
   const macrosById = parsed.data.macros?.byId ?? {}
   const macrosOrder = normalizeMacrosOrder(macrosById, parsed.data.macros?.order ?? [])
+  const migratedAt = parsed.data.macroStorageMigration?.migratedAt
 
   return MainStoreStateSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     macros: {
       byId: macrosById,
       order: macrosOrder
     },
+    macroStorageMigration: {
+      status: parsed.data.macroStorageMigration?.status ?? 'PENDING',
+      migratedAt,
+      migratedCount: parsed.data.macroStorageMigration?.migratedCount ?? 0
+    },
     logs: {
       buffer: parsed.data.logs?.buffer ?? []
+    },
+    audit: {
+      buffer: parsed.data.audit?.buffer ?? []
     },
     stats: {
       counters: {
@@ -178,12 +221,33 @@ export const timestamp = (): string => {
   return `[${hh}:${mm}:${ss}]`
 }
 
-export const createActivityLog = (input: Pick<ActivityLog, 'level' | 'message'>): ActivityLog => {
+export const createActivityLog = (
+  input: Pick<ActivityLog, 'level' | 'message'> & { runId?: string }
+): ActivityLog => {
   return ActivityLogSchema.parse({
     id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: timestamp(),
     level: input.level,
+    runId: input.runId,
     message: input.message
+  })
+}
+
+export const createAuditEvent = (input: {
+  action: AuditAction
+  targetId?: string
+  correlationId?: string
+  reason?: string
+  meta?: Record<string, unknown>
+}): AuditEvent => {
+  return AuditEventSchema.parse({
+    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: timestamp(),
+    action: input.action,
+    targetId: input.targetId,
+    correlationId: input.correlationId,
+    reason: input.reason,
+    meta: input.meta
   })
 }
 

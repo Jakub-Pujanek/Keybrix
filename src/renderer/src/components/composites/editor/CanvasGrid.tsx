@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorBlockType, EditorNode } from '../../../../../shared/api'
+import { isRegisteredEditorBlockType } from '../../../../../shared/block-registry'
 import ActionBlock from './ActionBlock'
 
 const WORLD_WIDTH = 6000
@@ -53,18 +54,6 @@ function CanvasGrid({
   const panStartRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(
     null
   )
-
-  const isEditorBlockType = (value: string): value is EditorBlockType => {
-    return [
-      'START',
-      'PRESS_KEY',
-      'WAIT',
-      'MOUSE_CLICK',
-      'TYPE_TEXT',
-      'REPEAT',
-      'INFINITE_LOOP'
-    ].includes(value)
-  }
 
   const handleUpdatePayload = useCallback(
     (nodeId: string, nextPayload: Record<string, unknown>) => {
@@ -227,7 +216,7 @@ function CanvasGrid({
       event.dataTransfer.getData('application/x-keybrix-block-type') ||
       event.dataTransfer.getData('text/plain')
 
-    if (isEditorBlockType(blockType)) {
+    if (isRegisteredEditorBlockType(blockType)) {
       event.preventDefault()
       event.dataTransfer.dropEffect = 'copy'
     }
@@ -237,7 +226,7 @@ function CanvasGrid({
     const blockType =
       event.dataTransfer.getData('application/x-keybrix-block-type') ||
       event.dataTransfer.getData('text/plain')
-    if (!isEditorBlockType(blockType)) return
+    if (!isRegisteredEditorBlockType(blockType)) return
 
     event.preventDefault()
 

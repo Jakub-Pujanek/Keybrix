@@ -16,6 +16,9 @@ export type LogLevel = z.infer<typeof LogLevelSchema>
 export const SystemStatusSchema = z.enum(['OPTIMAL', 'DEGRADED'])
 export type SystemStatus = z.infer<typeof SystemStatusSchema>
 
+export const SessionTypeSchema = z.enum(['WAYLAND', 'X11', 'UNKNOWN'])
+export type SessionType = z.infer<typeof SessionTypeSchema>
+
 export const MacroSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -31,9 +34,30 @@ export const ActivityLogSchema = z.object({
   id: z.string().min(1),
   timestamp: z.string().min(1),
   level: LogLevelSchema,
+  runId: z.string().min(1).optional(),
   message: z.string().min(1)
 })
 export type ActivityLog = z.infer<typeof ActivityLogSchema>
+
+export const AuditActionSchema = z.enum([
+  'MACRO_RUN',
+  'MACRO_RUN_BLOCKED',
+  'SETTINGS_UPDATED',
+  'MACRO_TOGGLED',
+  'MACRO_DELETED'
+])
+export type AuditAction = z.infer<typeof AuditActionSchema>
+
+export const AuditEventSchema = z.object({
+  id: z.string().min(1),
+  timestamp: z.string().min(1),
+  action: AuditActionSchema,
+  targetId: z.string().min(1).optional(),
+  correlationId: z.string().min(1).optional(),
+  reason: z.string().min(1).optional(),
+  meta: z.record(z.string(), z.unknown()).optional()
+})
+export type AuditEvent = z.infer<typeof AuditEventSchema>
 
 export const DashboardStatsSchema = z.object({
   totalAutomations: z.number().int().nonnegative(),
@@ -87,6 +111,19 @@ export const EditorDocumentSchema = z.object({
 })
 export type EditorDocument = z.infer<typeof EditorDocumentSchema>
 
+export const RuntimeCommandSchema = z.object({
+  type: EditorBlockTypeSchema,
+  payload: z.record(z.string(), z.unknown()).default({})
+})
+export type RuntimeCommand = z.infer<typeof RuntimeCommandSchema>
+
+export const RuntimeMacroDocumentSchema = z.object({
+  commands: z.array(RuntimeCommandSchema),
+  nodes: z.array(EditorNodeSchema).optional(),
+  zoom: z.number().min(0.5).max(2).optional()
+})
+export type RuntimeMacroDocument = z.infer<typeof RuntimeMacroDocumentSchema>
+
 export const RecordShortcutInputSchema = z.object({
   keys: z.string().min(1),
   source: z.enum(['topbar', 'start-block', 'press-key-block'])
@@ -105,6 +142,21 @@ export const AppSettingsSchema = z.object({
   accentColor: AccentColorSchema
 })
 export type AppSettings = z.infer<typeof AppSettingsSchema>
+
+export const RuntimeSessionInfoSchema = z.object({
+  sessionType: SessionTypeSchema,
+  rawSession: z.string().nullable(),
+  detectedAt: z.string().datetime(),
+  isInputInjectionSupported: z.boolean()
+})
+export type RuntimeSessionInfo = z.infer<typeof RuntimeSessionInfoSchema>
+
+export const SessionCheckResultSchema = z.object({
+  previousSessionType: SessionTypeSchema,
+  sessionInfo: RuntimeSessionInfoSchema,
+  changed: z.boolean()
+})
+export type SessionCheckResult = z.infer<typeof SessionCheckResultSchema>
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   launchAtStartup: true,
@@ -141,6 +193,38 @@ export const MacroRunNotificationInputSchema = z.object({
 })
 export type MacroRunNotificationInput = z.infer<typeof MacroRunNotificationInputSchema>
 
+export const ManualRunReasonCodeSchema = z.enum([
+  'SUCCESS',
+  'SAVE_FAILED',
+  'ALREADY_RUNNING',
+  'MACRO_NOT_FOUND',
+  'INVALID_MACRO_ID',
+  'GLOBAL_MASTER_OFF',
+  'WAYLAND_BLOCKED',
+  'COMPILE_ERROR',
+  'ABORTED',
+  'COMMAND_TIMEOUT',
+  'COMMAND_ERROR',
+  'RUNNER_FAILED',
+  'IPC_ERROR',
+  'UNKNOWN'
+])
+export type ManualRunReasonCode = z.infer<typeof ManualRunReasonCodeSchema>
+
+export const ManualRunResultSchema = z.object({
+  runId: z.string().min(1),
+  success: z.boolean(),
+  reasonCode: ManualRunReasonCodeSchema,
+  debugMessage: z.string().min(1).optional()
+})
+export type ManualRunResult = z.infer<typeof ManualRunResultSchema>
+
+export const RunMacroRequestSchema = z.object({
+  id: z.string().min(1),
+  attemptId: z.string().min(1).optional()
+})
+export type RunMacroRequest = z.infer<typeof RunMacroRequestSchema>
+
 export const IPC_CHANNELS = {
   macros: {
     getAll: 'macros:get-all',
@@ -158,6 +242,8 @@ export const IPC_CHANNELS = {
     newLog: 'logs:new-log'
   },
   system: {
+    getSessionInfo: 'system:get-session-info',
+    refreshSessionInfo: 'system:refresh-session-info',
     statusUpdate: 'system:status-update',
     macroStatusChanged: 'system:macro-status-changed'
   },
@@ -180,7 +266,7 @@ export interface KeybrixApi {
     save: (macro: SaveMacroInput) => Promise<Macro>
     delete: (id: string) => Promise<boolean>
     toggle: (id: string, isActive: boolean) => Promise<boolean>
-    runManually: (id: string) => Promise<void>
+    runManually: (id: string, context?: { attemptId?: string }) => Promise<ManualRunResult>
   }
   stats: {
     getDashboardStats: () => Promise<DashboardStats>
@@ -190,6 +276,8 @@ export interface KeybrixApi {
     onNewLog: (callback: (log: ActivityLog) => void) => () => void
   }
   system: {
+    getSessionInfo: () => Promise<RuntimeSessionInfo>
+    refreshSessionInfo: () => Promise<SessionCheckResult>
     onStatusUpdate: (callback: (status: SystemStatus) => void) => () => void
     onMacroStatusChange: (callback: (id: string, newStatus: MacroStatus) => void) => () => void
   }

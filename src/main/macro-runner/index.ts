@@ -1,5 +1,10 @@
-import type { Macro } from '../../shared/api'
-import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js'
+import { RuntimeCommandSchema, type Macro, type RuntimeCommand } from '../../shared/api'
+import {
+  MAX_REPEAT_NESTING_DEPTH,
+  RuntimeCompileDiagnosticSeverity,
+  compileNodesToRuntime
+} from '../../shared/macro-runtime'
+import { executeRuntimeCommand } from './block-runtime.registry'
 
 type RuntimeSettings = {
   globalMaster: boolean
@@ -7,13 +12,15 @@ type RuntimeSettings = {
   stopOnError: boolean
 }
 
-type RuntimeCommand = {
-  type?: unknown
-  ms?: unknown
-  payload?: unknown
-  key?: unknown
-  text?: unknown
-}
+export type MacroRunnerReasonCode =
+  | 'SUCCESS'
+  | 'WAYLAND_BLOCKED'
+  | 'COMPILE_ERROR'
+  | 'ABORTED'
+  | 'GLOBAL_MASTER_OFF'
+  | 'COMMAND_TIMEOUT'
+  | 'COMMAND_ERROR'
+  | 'RUNNER_FAILED'
 
 type RunMacroParams = {
   macro: Macro
@@ -23,301 +30,227 @@ type RunMacroParams = {
   shouldAbort?: () => boolean
 }
 
-const MAX_REPEAT_ITERATIONS = 1000
-
-const keyMap: Record<string, Key> = {
-  CTRL: Key.LeftControl,
-  CONTROL: Key.LeftControl,
-  SHIFT: Key.LeftShift,
-  ALT: Key.LeftAlt,
-  CMD: Key.LeftSuper,
-  META: Key.LeftSuper,
-  ENTER: Key.Enter,
-  SPACE: Key.Space,
-  TAB: Key.Tab,
-  ESC: Key.Escape,
-  BACKSPACE: Key.Backspace,
-  DELETE: Key.Delete,
-  UP: Key.Up,
-  DOWN: Key.Down,
-  LEFT: Key.Left,
-  RIGHT: Key.Right
+type RunMacroResult = {
+  success: boolean
+  reasonCode: MacroRunnerReasonCode
 }
 
-const mouseButtonMap: Record<string, Button> = {
-  LEFT: Button.LEFT,
-  RIGHT: Button.RIGHT,
-  MIDDLE: Button.MIDDLE
-}
-
-const sleep = async (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-
-const extractCommands = (macro: Macro): RuntimeCommand[] => {
+const extractCommands = (
+  macro: Macro
+): { commands: RuntimeCommand[]; compileDiagnostics: string[]; hasCompileErrors: boolean } => {
   const rawCommands = macro.blocksJson['commands']
   if (Array.isArray(rawCommands)) {
-    return rawCommands as RuntimeCommand[]
-  }
-
-  const rawNodes = macro.blocksJson['nodes']
-  if (!Array.isArray(rawNodes)) return []
-
-  const commands: RuntimeCommand[] = []
-
-  for (const node of rawNodes) {
-    if (!node || typeof node !== 'object') continue
-    const next = node as { type?: unknown; payload?: unknown }
-    commands.push({
-      type: next.type,
-      payload: next.payload
-    })
-  }
-
-  return commands
-}
-
-const resolveWaitDuration = (command: RuntimeCommand, fallbackMs: number): number => {
-  if (typeof command.ms === 'number') {
-    return Math.max(0, Math.round(command.ms))
-  }
-
-  if (command.payload && typeof command.payload === 'object') {
-    const payload = command.payload as { durationMs?: unknown }
-    if (typeof payload.durationMs === 'number') {
-      return Math.max(0, Math.round(payload.durationMs))
+    return {
+      commands: rawCommands
+        .map((command) => RuntimeCommandSchema.safeParse(command))
+        .filter((item): item is { success: true; data: RuntimeCommand } => item.success)
+        .map((item) => item.data),
+      compileDiagnostics: [],
+      hasCompileErrors: false
     }
   }
 
-  return fallbackMs
-}
-
-const resolveKey = (token: string): Key => {
-  const upper = token.toUpperCase()
-  if (keyMap[upper]) {
-    return keyMap[upper]
-  }
-
-  if (/^[A-Z]$/.test(upper)) {
-    const alpha = (Key as unknown as Record<string, Key>)[upper]
-    if (alpha !== undefined) {
-      return alpha
-    }
-  }
-
-  if (/^F([1-9]|1[0-2])$/.test(upper)) {
-    const fnKey = (Key as unknown as Record<string, Key>)[upper]
-    if (fnKey !== undefined) {
-      return fnKey
-    }
-  }
-
-  throw new Error(`Unsupported key token '${token}'`)
-}
-
-const extractShortcutTokens = (command: RuntimeCommand): string[] => {
-  if (typeof command.key === 'string' && command.key.trim().length > 0) {
-    return command.key.split('+').map((chunk) => chunk.trim())
-  }
-
-  if (command.payload && typeof command.payload === 'object') {
-    const payload = command.payload as { key?: unknown; keys?: unknown; value?: unknown }
-    const source = [payload.key, payload.keys, payload.value].find(
-      (item) => typeof item === 'string' && item.trim().length > 0
-    )
-
-    if (typeof source === 'string') {
-      return source.split('+').map((chunk) => chunk.trim())
-    }
-  }
-
-  throw new Error('PRESS_KEY command is missing key payload')
-}
-
-const runPressKey = async (command: RuntimeCommand): Promise<void> => {
-  const tokens = extractShortcutTokens(command)
-  const keys = tokens.map((token) => resolveKey(token))
-
-  if (keys.length === 0) {
-    throw new Error('PRESS_KEY command has no keys to press')
-  }
-
-  await keyboard.pressKey(...keys)
-  await keyboard.releaseKey(...keys.reverse())
-}
-
-const runTypeText = async (command: RuntimeCommand): Promise<void> => {
-  let text: string | undefined
-
-  if (typeof command.text === 'string') {
-    text = command.text
-  }
-
-  if (!text && command.payload && typeof command.payload === 'object') {
-    const payload = command.payload as { text?: unknown; value?: unknown }
-    if (typeof payload.text === 'string') {
-      text = payload.text
-    } else if (typeof payload.value === 'string') {
-      text = payload.value
-    }
-  }
-
-  if (!text) {
-    throw new Error('TYPE_TEXT command is missing text payload')
-  }
-
-  await keyboard.type(text)
-}
-
-const runMouseClick = async (command: RuntimeCommand): Promise<void> => {
-  if (!command.payload || typeof command.payload !== 'object') {
-    throw new Error('MOUSE_CLICK command is missing payload')
-  }
-
-  const payload = command.payload as { x?: unknown; y?: unknown; button?: unknown }
-  if (typeof payload.x !== 'number' || typeof payload.y !== 'number') {
-    throw new Error('MOUSE_CLICK requires numeric x and y')
-  }
-
-  const buttonLabel =
-    typeof payload.button === 'string' && payload.button.trim().length > 0
-      ? payload.button.toUpperCase()
-      : 'LEFT'
-  const button = mouseButtonMap[buttonLabel]
-  if (!button) {
-    throw new Error(`Unsupported mouse button '${buttonLabel}'`)
-  }
-
-  await mouse.setPosition(new Point(payload.x, payload.y))
-  await mouse.click(button)
-}
-
-const extractRepeat = (command: RuntimeCommand): { count: number; commands: RuntimeCommand[] } => {
-  if (!command.payload || typeof command.payload !== 'object') {
-    throw new Error('REPEAT command is missing payload')
-  }
-
-  const payload = command.payload as { count?: unknown; commands?: unknown }
-  const rawCount = typeof payload.count === 'number' ? Math.floor(payload.count) : 1
-  const count = Math.max(0, Math.min(MAX_REPEAT_ITERATIONS, rawCount))
-  if (!Array.isArray(payload.commands)) {
-    throw new Error('REPEAT command is missing nested commands array')
-  }
+  const compiled = compileNodesToRuntime(macro.blocksJson['nodes'])
+  const compileDiagnostics = compiled.diagnostics.map((item) => item.message)
 
   return {
-    count,
-    commands: payload.commands as RuntimeCommand[]
+    commands: compiled.commands,
+    compileDiagnostics,
+    hasCompileErrors: compiled.diagnostics.some(
+      (item) => item.severity === RuntimeCompileDiagnosticSeverity.ERROR
+    )
   }
 }
 
 export class MacroRunner {
-  async runMacro(params: RunMacroParams): Promise<{ success: boolean }> {
-    const { macro, settings, onLog, isGlobalMasterEnabled, shouldAbort } = params
-    const commands = extractCommands(macro)
+  private isWaylandSession(): boolean {
+    const sessionType = process.env['XDG_SESSION_TYPE'] ?? ''
+    return process.platform === 'linux' && sessionType.toLowerCase() === 'wayland'
+  }
+
+  private isTestEnvironment(): boolean {
+    return process.env['NODE_ENV'] === 'test' || process.env['VITEST'] === 'true'
+  }
+
+  private logRuntimeEnvironment(
+    onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void
+  ): void {
+    const sessionType = process.env['XDG_SESSION_TYPE'] ?? 'unknown'
+    const display = process.env['DISPLAY'] ?? 'unset'
+    const waylandDisplay = process.env['WAYLAND_DISPLAY'] ?? 'unset'
 
     onLog({
-      level: 'RUN',
-      message: `Manual run started for '${macro.name}'.`
+      level: 'INFO',
+      message: `Runtime environment: platform=${process.platform}, session=${sessionType}, display=${display}, wayland=${waylandDisplay}.`
     })
 
-    for (const command of commands) {
+    if (process.platform === 'linux' && sessionType.toLowerCase() === 'wayland') {
+      onLog({
+        level: 'WARN',
+        message:
+          'Wayland session detected. Keyboard/mouse injection can be blocked by compositor security policy.'
+      })
+    }
+  }
+
+  private logCommandStart(
+    command: RuntimeCommand,
+    index: number,
+    total: number,
+    onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void,
+    macroName: string
+  ): void {
+    onLog({
+      level: 'RUN',
+      message: `Executing '${command.type}' (${index + 1}/${total}) for '${macroName}'.`
+    })
+  }
+
+  private async runCommands(
+    commands: RuntimeCommand[],
+    params: {
+      macroName: string
+      recursionDepth: number
+      settings: RuntimeSettings
+      onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void
+      isGlobalMasterEnabled: () => boolean
+      shouldAbort?: () => boolean
+    }
+  ): Promise<RunMacroResult> {
+    const { macroName, recursionDepth, settings, onLog, isGlobalMasterEnabled, shouldAbort } =
+      params
+
+    if (recursionDepth > MAX_REPEAT_NESTING_DEPTH) {
+      onLog({
+        level: 'ERR',
+        message: `Macro '${macroName}' exceeded max nested REPEAT depth (${MAX_REPEAT_NESTING_DEPTH}).`
+      })
+      return { success: false, reasonCode: 'RUNNER_FAILED' }
+    }
+
+    for (const [index, command] of commands.entries()) {
       if (shouldAbort?.()) {
         onLog({
           level: 'WARN',
-          message: `Run aborted for '${macro.name}'.`
+          message: `Run aborted for '${macroName}'.`
         })
-        return { success: false }
+        return { success: false, reasonCode: 'ABORTED' }
       }
 
       if (!isGlobalMasterEnabled()) {
         onLog({
           level: 'WARN',
-          message: `Global master is OFF. Stopped '${macro.name}'.`
+          message: `Global master is OFF. Stopped '${macroName}'.`
         })
-        return { success: false }
+        return { success: false, reasonCode: 'GLOBAL_MASTER_OFF' }
       }
 
       try {
-        const commandType = typeof command.type === 'string' ? command.type : undefined
-        if (!commandType) {
-          throw new Error('Missing command type')
-        }
+        this.logCommandStart(command, index, commands.length, onLog, macroName)
 
-        if (commandType === 'PRESS_KEY') {
-          await runPressKey(command)
-          await sleep(settings.delayMs)
-          continue
-        }
+        const success = await executeRuntimeCommand(command, {
+          settings,
+          onLog,
+          shouldAbort: () => shouldAbort?.() ?? false,
+          isGlobalMasterEnabled,
+          runNestedCommands: async (nestedCommands) => {
+            const nestedResult = await this.runCommands(nestedCommands, {
+              macroName,
+              recursionDepth: recursionDepth + 1,
+              settings,
+              onLog,
+              isGlobalMasterEnabled,
+              shouldAbort
+            })
 
-        if (commandType === 'TYPE_TEXT') {
-          await runTypeText(command)
-          await sleep(settings.delayMs)
-          continue
-        }
-
-        if (commandType === 'MOUSE_CLICK') {
-          await runMouseClick(command)
-          await sleep(settings.delayMs)
-          continue
-        }
-
-        if (commandType === 'WAIT') {
-          const waitMs = resolveWaitDuration(command, settings.delayMs)
-          await sleep(waitMs)
-          continue
-        }
-
-        if (commandType === 'REPEAT') {
-          const repeat = extractRepeat(command)
-          for (let index = 0; index < repeat.count; index += 1) {
-            for (const nested of repeat.commands) {
-              if (shouldAbort?.() || !isGlobalMasterEnabled()) {
-                return { success: false }
-              }
-
-              const nestedResult = await this.runMacro({
-                macro: {
-                  ...macro,
-                  blocksJson: {
-                    commands: [nested]
-                  }
-                },
-                settings,
-                onLog,
-                isGlobalMasterEnabled,
-                shouldAbort
-              })
-
-              if (!nestedResult.success && settings.stopOnError) {
-                return { success: false }
-              }
-            }
+            return nestedResult.success
           }
-          continue
+        })
+
+        if (!success && settings.stopOnError) {
+          return { success: false, reasonCode: 'RUNNER_FAILED' }
         }
 
-        if (commandType === 'INFINITE_LOOP') {
+        if (success) {
           onLog({
-            level: 'WARN',
-            message: `Skipped unsupported INFINITE_LOOP in '${macro.name}'.`
+            level: 'INFO',
+            message: `Command '${command.type}' finished for '${macroName}'.`
           })
-          continue
         }
-
-        await sleep(settings.delayMs)
       } catch (error) {
         const reason = error instanceof Error ? error.message : 'Unknown error'
 
         onLog({
           level: 'ERR',
-          message: `Macro '${macro.name}' failed on command: ${reason}.`
+          message: `Macro '${macroName}' failed on command: ${reason}.`
         })
 
         if (settings.stopOnError) {
-          return { success: false }
+          if (reason.toLowerCase().includes('timed out')) {
+            return { success: false, reasonCode: 'COMMAND_TIMEOUT' }
+          }
+
+          return { success: false, reasonCode: 'COMMAND_ERROR' }
         }
       }
+    }
+
+    return { success: true, reasonCode: 'SUCCESS' }
+  }
+
+  async runMacro(params: RunMacroParams): Promise<RunMacroResult> {
+    const { macro, settings, onLog, isGlobalMasterEnabled, shouldAbort } = params
+    const { commands, compileDiagnostics, hasCompileErrors } = extractCommands(macro)
+    const actionableCommands = commands.filter((command) => command.type !== 'START')
+
+    onLog({
+      level: 'RUN',
+      message: `Manual run started for '${macro.name}'.`
+    })
+    this.logRuntimeEnvironment(onLog)
+
+    if (this.isWaylandSession() && !this.isTestEnvironment()) {
+      onLog({
+        level: 'ERR',
+        message:
+          'Wayland blocks simulated keyboard/mouse input for this app. Switch to X11 session to run macro actions.'
+      })
+      return { success: false, reasonCode: 'WAYLAND_BLOCKED' }
+    }
+
+    for (const diagnostic of compileDiagnostics) {
+      onLog({
+        level: 'WARN',
+        message: `Compile diagnostic for '${macro.name}': ${diagnostic}`
+      })
+    }
+
+    if (actionableCommands.length === 0) {
+      onLog({
+        level: 'WARN',
+        message: `Macro '${macro.name}' has no actionable commands (only START or empty).`
+      })
+    }
+
+    if (hasCompileErrors) {
+      onLog({
+        level: 'ERR',
+        message: `Macro '${macro.name}' has compile errors. Run aborted.`
+      })
+      return { success: false, reasonCode: 'COMPILE_ERROR' }
+    }
+
+    const result = await this.runCommands(commands, {
+      macroName: macro.name,
+      recursionDepth: 0,
+      settings,
+      onLog,
+      isGlobalMasterEnabled,
+      shouldAbort
+    })
+
+    if (!result.success) {
+      return result
     }
 
     onLog({
@@ -325,7 +258,7 @@ export class MacroRunner {
       message: `Manual run finished for '${macro.name}'.`
     })
 
-    return { success: true }
+    return { success: true, reasonCode: 'SUCCESS' }
   }
 }
 

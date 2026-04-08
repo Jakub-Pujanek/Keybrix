@@ -8,6 +8,7 @@ type EditorTopBarProps = {
   shortcut: string
   isRecording: boolean
   pressedPreview: string
+  onMacroTitleChange: (value: string) => void
   onStartShortcutRecording: () => void
   onCancelShortcutRecording: () => void
   onClear: () => void
@@ -20,6 +21,7 @@ function EditorTopBar({
   shortcut,
   isRecording,
   pressedPreview,
+  onMacroTitleChange,
   onStartShortcutRecording,
   onCancelShortcutRecording,
   onClear,
@@ -29,9 +31,18 @@ function EditorTopBar({
   const { tx } = useI18n()
 
   return (
-    <header className="mb-4 flex items-center justify-between rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] px-5 py-3">
-      <div className="flex items-center gap-4">
-        <h2 className="text-[32px] font-semibold text-[var(--kb-text-main)]">{macroTitle}</h2>
+    <header className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] px-5 py-3">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <input
+          value={macroTitle}
+          maxLength={60}
+          onChange={(event) => {
+            onMacroTitleChange(event.target.value)
+          }}
+          className="min-w-[10ch] max-w-[50vw] bg-transparent text-[32px] font-semibold text-[var(--kb-text-main)] outline-none"
+          style={{ width: `${Math.max(10, macroTitle.length + 1)}ch` }}
+          aria-label="Macro title"
+        />
         <ShortcutRecorderInput
           value={shortcut}
           isRecording={isRecording}

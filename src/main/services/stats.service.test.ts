@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 class MockStore<T extends Record<string, unknown>> {
   private readonly data = new Map<string, unknown>()
@@ -23,8 +26,19 @@ vi.mock('electron-store', () => ({
   default: MockStore
 }))
 
+let testUserDataDir = ''
+
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => testUserDataDir)
+  }
+}))
+
 describe('StatsService', () => {
   beforeEach(async () => {
+    testUserDataDir = mkdtempSync(join(tmpdir(), 'keybrix-stats-service-'))
+    rmSync(testUserDataDir, { recursive: true, force: true })
+
     vi.resetModules()
     const { mainStore, INITIAL_MAIN_STORE_STATE } = await import('../store')
     mainStore.setState(INITIAL_MAIN_STORE_STATE)

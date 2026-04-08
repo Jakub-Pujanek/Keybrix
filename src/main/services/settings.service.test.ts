@@ -31,9 +31,14 @@ vi.mock('electron-store', () => ({
 }))
 
 describe('settingsService theme integration', () => {
+  const originalPlatform = process.platform
+
   beforeEach(() => {
     nativeThemeMock.themeSource = 'dark'
     appMock.setLoginItemSettings.mockReset()
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform
+    })
   })
 
   it('applyThemeMode sets nativeTheme source for LIGHT', async () => {
@@ -52,5 +57,21 @@ describe('settingsService theme integration', () => {
     settingsService.update({ themeMode: 'LIGHT' })
 
     expect(nativeThemeMock.themeSource).toBe('light')
+  })
+
+  it('update applies launch-at-startup side effect on supported platform', async () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'win32'
+    })
+
+    vi.resetModules()
+    const { settingsService } = await import('./settings.service')
+
+    settingsService.update({ launchAtStartup: false })
+
+    expect(appMock.setLoginItemSettings).toHaveBeenCalledWith({
+      openAtLogin: false,
+      openAsHidden: false
+    })
   })
 })

@@ -49,10 +49,10 @@ describe('ShortcutManager', () => {
     })
 
     expect(registered).toBe(true)
-    expect(state.callbacks.has('CTRL+A')).toBe(true)
+    expect(state.callbacks.has('CommandOrControl+A')).toBe(true)
 
     manager.unregisterByMacroId('m1')
-    expect(state.callbacks.has('CTRL+A')).toBe(false)
+    expect(state.callbacks.has('CommandOrControl+A')).toBe(false)
   })
 
   it('rejects collision for different macro ids', () => {
@@ -96,8 +96,8 @@ describe('ShortcutManager', () => {
       })
     ).toBe(true)
 
-    expect(state.callbacks.has('CTRL+A')).toBe(false)
-    expect(state.callbacks.has('CTRL+B')).toBe(true)
+    expect(state.callbacks.has('CommandOrControl+A')).toBe(false)
+    expect(state.callbacks.has('CommandOrControl+B')).toBe(true)
   })
 
   it('cleans all shortcuts on dispose', () => {
@@ -116,6 +116,38 @@ describe('ShortcutManager', () => {
     })
 
     manager.dispose()
+    expect(state.callbacks.size).toBe(0)
+  })
+
+  it('recovers from stale global registration not tracked in manager maps', () => {
+    const { state, registry } = createRegistry()
+    const manager = new ShortcutManager(registry)
+
+    state.callbacks.set('CommandOrControl+Shift+K', vi.fn())
+
+    const registered = manager.registerMacro({
+      macroId: 'm1',
+      shortcut: 'CTRL+SHIFT+K',
+      onTrigger: vi.fn()
+    })
+
+    expect(registered).toBe(true)
+    expect(state.callbacks.has('CommandOrControl+Shift+K')).toBe(true)
+  })
+
+  it('rejects unsupported shortcuts with multiple non-modifier keys', () => {
+    const { state, registry } = createRegistry()
+    const manager = new ShortcutManager(registry)
+
+    expect(manager.isShortcutFormatSupported('CTRL+O+P')).toBe(false)
+
+    const registered = manager.registerMacro({
+      macroId: 'm1',
+      shortcut: 'CTRL+O+P',
+      onTrigger: vi.fn()
+    })
+
+    expect(registered).toBe(false)
     expect(state.callbacks.size).toBe(0)
   })
 })

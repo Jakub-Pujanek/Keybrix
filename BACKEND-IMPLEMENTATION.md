@@ -316,3 +316,40 @@ Decyzje zamrozone dla implementacji:
 2. Concurrency runtime: single-flight per macro.
 3. Health check: interwal 5s + debounce 2 pomiary.
 4. keyboard.recordShortcut: walidacja + rezerwacja shortcutu.
+
+## 15. Status realizacji Faz A-C
+
+### Faza A - Completed
+
+1. Zaimplementowano trwaly MainStore oraz serwisy domenowe (macro/logs/stats/settings).
+2. Dodano walidacje graniczne i testy jednostkowe dla warstwy serwisow.
+3. Dane makr/logow/stats sa utrzymywane po restarcie aplikacji.
+
+### Faza B - Completed
+
+1. Dodano i podlaczono handlery IPC dla kontraktu macros/stats/logs/keyboard/settings.
+2. Dodano push eventy z Main: logs.new-log, system.statusUpdate, system.macroStatusChanged.
+3. Preload zostal przebudowany do cienkiego adaptera IPC bez logiki runtime.
+
+### Faza C - Completed
+
+1. Zaimplementowano realny MacroRunner (PRESS_KEY/TYPE_TEXT/MOUSE_CLICK/WAIT/REPEAT/INFINITE_LOOP policy).
+2. Zaimplementowano ShortcutManager oparty o electron.globalShortcut.
+3. Dodano single-flight per macro, cancellation flow i lifecycle shortcutow w Main.
+4. Rozszerzono testy runtime i shortcutow.
+
+## 16. Status realizacji Fazy D
+
+### Faza D - Completed
+
+1. Potwierdzono, ze preload dziala jako adapter IPC i nie zawiera logiki domenowej.
+2. Usunieto pozostale artefakty mock bridge (dead-code cleanup + aktualizacja dokumentacji).
+
+## 17. Status realizacji Fazy E
+
+### Faza E - In progress
+
+1. Dodano fundament observability: structured logging service i persistencje audit trail (retencja N=100).
+2. Dodano correlation id dla krytycznych handlerow IPC (settings.update, macros.run).
+3. Dodano testy edge-case (delete-during-run, malformed blocksJson) oraz testy nowej warstwy observability.
+4. Dodano automated smoke tests dla przeplywow end-to-end (create-save-toggle-run, globalMaster OFF, restart persistence).

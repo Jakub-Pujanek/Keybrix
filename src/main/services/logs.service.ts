@@ -8,7 +8,7 @@ type LogListener = (log: ActivityLog) => void
 export class LogsService {
   private readonly listeners = new Set<LogListener>()
 
-  append(input: Pick<ActivityLog, 'level' | 'message'>): ActivityLog {
+  append(input: Pick<ActivityLog, 'level' | 'message'> & { runId?: string }): ActivityLog {
     const nextLog = createActivityLog(input)
 
     mainStore.updateState((prev) => ({

@@ -10,11 +10,16 @@ import {
   type AppSettings,
   IPC_CHANNELS,
   MacroRunNotificationInputSchema,
+  ManualRunResultSchema,
   MacroSchema,
   RecordShortcutInputSchema,
+  RuntimeSessionInfoSchema,
+  RunMacroRequestSchema,
   SaveMacroInputSchema,
+  SessionCheckResultSchema,
   ToggleMacroInputSchema,
-  UpdateAppSettingsInputSchema
+  UpdateAppSettingsInputSchema,
+  type RuntimeSessionInfo
 } from '../shared/api'
 import { settingsService } from './services/settings.service'
 import { logsService } from './services/logs.service'
@@ -22,6 +27,9 @@ import { macroService } from './services/macro.service'
 import { statsService } from './services/stats.service'
 import { systemHealthService } from './services/system-health.service'
 import { shortcutManager } from './keyboard'
+import { structuredLogger } from './services/structured-logger.service'
+import { macroMigrationService } from './services/macro-migration.service'
+import { macroSeedService } from './services/macro-seed.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
@@ -36,6 +44,103 @@ const runtimeDisposers: Array<() => void> = []
 //   system push channels, keyboard.recordShortcut.
 
 const getSettings = (): AppSettings => settingsService.get()
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'Unknown error'
+
+type SessionType = 'WAYLAND' | 'X11' | 'UNKNOWN'
+let lastSessionType: SessionType | null = null
+
+type SessionDetectionSnapshot = {
+  xdgSessionType: string | null
+  waylandDisplay: string | null
+  display: string | null
+  desktopSession: string | null
+}
+
+const resolveSessionType = (rawSession: string | null): SessionType => {
+  if (!rawSession) return 'UNKNOWN'
+
+  const normalized = rawSession.trim().toLowerCase()
+  if (normalized === 'wayland') return 'WAYLAND'
+  if (normalized === 'x11' || normalized === 'xorg') return 'X11'
+
+  return 'UNKNOWN'
+}
+
+const readSessionEnvSnapshot = (): SessionDetectionSnapshot => {
+  const normalize = (value: string | undefined): string | null => {
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+
+  return {
+    xdgSessionType: normalize(process.env['XDG_SESSION_TYPE']),
+    waylandDisplay: normalize(process.env['WAYLAND_DISPLAY']),
+    display: normalize(process.env['DISPLAY']),
+    desktopSession: normalize(process.env['DESKTOP_SESSION'])
+  }
+}
+
+const resolveSessionFromSnapshot = (
+  snapshot: SessionDetectionSnapshot
+): { sessionType: SessionType; rawSession: string | null } => {
+  const byXdg = resolveSessionType(snapshot.xdgSessionType)
+  if (byXdg !== 'UNKNOWN') {
+    return {
+      sessionType: byXdg,
+      rawSession: snapshot.xdgSessionType
+    }
+  }
+
+  if (snapshot.waylandDisplay) {
+    return {
+      sessionType: 'WAYLAND',
+      rawSession: 'wayland'
+    }
+  }
+
+  if (snapshot.display) {
+    return {
+      sessionType: 'X11',
+      rawSession: 'x11'
+    }
+  }
+
+  if (snapshot.desktopSession) {
+    const normalizedDesktop = snapshot.desktopSession.toLowerCase()
+    if (normalizedDesktop.includes('wayland')) {
+      return {
+        sessionType: 'WAYLAND',
+        rawSession: snapshot.desktopSession
+      }
+    }
+
+    if (normalizedDesktop.includes('x11') || normalizedDesktop.includes('xorg')) {
+      return {
+        sessionType: 'X11',
+        rawSession: snapshot.desktopSession
+      }
+    }
+  }
+
+  return {
+    sessionType: 'UNKNOWN',
+    rawSession: null
+  }
+}
+
+const detectRuntimeSessionInfo = (): RuntimeSessionInfo => {
+  const snapshot = readSessionEnvSnapshot()
+  const resolved = resolveSessionFromSnapshot(snapshot)
+
+  return RuntimeSessionInfoSchema.parse({
+    sessionType: resolved.sessionType,
+    rawSession: resolved.rawSession,
+    detectedAt: new Date().toISOString(),
+    isInputInjectionSupported: resolved.sessionType === 'X11'
+  })
+}
 
 const broadcastToRenderers = (channel: string, payload: unknown): void => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -165,12 +270,17 @@ const registerIpcHandlers = (): void => {
     try {
       return getSettings()
     } catch (error) {
-      console.error('[settings][main] get failed:', error)
+      structuredLogger.error('Settings get failed.', {
+        scope: 'ipc.settings.get',
+        reason: getErrorMessage(error)
+      })
       throw error
     }
   })
 
   ipcMain.handle(IPC_CHANNELS.settings.update, (_, input) => {
+    const correlationId = globalThis.crypto.randomUUID()
+
     try {
       const parsed = UpdateAppSettingsInputSchema.parse(input)
       const next = settingsService.update(parsed)
@@ -188,9 +298,24 @@ const registerIpcHandlers = (): void => {
         shortcutManager.unregisterAll()
       }
 
+      structuredLogger.audit({
+        action: 'SETTINGS_UPDATED',
+        correlationId,
+        meta: {
+          keys: Object.keys(parsed)
+        }
+      })
+
       return next
     } catch (error) {
-      console.error('[settings][main] update failed:', error, input)
+      structuredLogger.error('Settings update failed.', {
+        scope: 'ipc.settings.update',
+        correlationId,
+        reason: getErrorMessage(error),
+        details: {
+          input
+        }
+      })
       throw error
     }
   })
@@ -220,7 +345,10 @@ const registerIpcHandlers = (): void => {
       const macros = macroService.getAll()
       return macros.map((macro) => MacroSchema.parse(macro))
     } catch (error) {
-      console.error('[macros][main] getAll failed:', error)
+      structuredLogger.error('Macros getAll failed.', {
+        scope: 'ipc.macros.getAll',
+        reason: getErrorMessage(error)
+      })
       throw error
     }
   })
@@ -231,7 +359,13 @@ const registerIpcHandlers = (): void => {
       const macro = macroService.getById(id)
       return macro ? MacroSchema.parse(macro) : null
     } catch (error) {
-      console.error('[macros][main] getById failed:', error, id)
+      structuredLogger.error('Macros getById failed.', {
+        scope: 'ipc.macros.getById',
+        reason: getErrorMessage(error),
+        details: {
+          id
+        }
+      })
       throw error
     }
   })
@@ -242,7 +376,13 @@ const registerIpcHandlers = (): void => {
       const macro = macroService.save(parsed)
       return MacroSchema.parse(macro)
     } catch (error) {
-      console.error('[macros][main] save failed:', error, input)
+      structuredLogger.error('Macros save failed.', {
+        scope: 'ipc.macros.save',
+        reason: getErrorMessage(error),
+        details: {
+          input
+        }
+      })
       throw error
     }
   })
@@ -252,7 +392,13 @@ const registerIpcHandlers = (): void => {
       if (typeof id !== 'string' || id.length === 0) return false
       return macroService.delete(id)
     } catch (error) {
-      console.error('[macros][main] delete failed:', error, id)
+      structuredLogger.error('Macros delete failed.', {
+        scope: 'ipc.macros.delete',
+        reason: getErrorMessage(error),
+        details: {
+          id
+        }
+      })
       throw error
     }
   })
@@ -262,7 +408,14 @@ const registerIpcHandlers = (): void => {
       const parsed = ToggleMacroInputSchema.parse({ id, isActive })
       return macroService.toggle(parsed.id, parsed.isActive)
     } catch (error) {
-      console.error('[macros][main] toggle failed:', error, { id, isActive })
+      structuredLogger.error('Macros toggle failed.', {
+        scope: 'ipc.macros.toggle',
+        reason: getErrorMessage(error),
+        details: {
+          id,
+          isActive
+        }
+      })
       throw error
     }
   })
@@ -272,7 +425,10 @@ const registerIpcHandlers = (): void => {
       const stats = statsService.getDashboardStats()
       return DashboardStatsSchema.parse(stats)
     } catch (error) {
-      console.error('[stats][main] get failed:', error)
+      structuredLogger.error('Stats get failed.', {
+        scope: 'ipc.stats.get',
+        reason: getErrorMessage(error)
+      })
       throw error
     }
   })
@@ -282,7 +438,10 @@ const registerIpcHandlers = (): void => {
       const logs = logsService.getRecent()
       return logs.map((log) => ActivityLogSchema.parse(log))
     } catch (error) {
-      console.error('[logs][main] getRecent failed:', error)
+      structuredLogger.error('Logs getRecent failed.', {
+        scope: 'ipc.logs.getRecent',
+        reason: getErrorMessage(error)
+      })
       throw error
     }
   })
@@ -292,20 +451,131 @@ const registerIpcHandlers = (): void => {
       const parsed = RecordShortcutInputSchema.parse(input)
       return macroService.reserveShortcut(parsed)
     } catch (error) {
-      console.error('[keyboard][main] recordShortcut failed:', error, input)
+      structuredLogger.error('Keyboard recordShortcut failed.', {
+        scope: 'ipc.keyboard.recordShortcut',
+        reason: getErrorMessage(error),
+        details: {
+          input
+        }
+      })
       throw error
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.macros.run, async (_, id) => {
+  ipcMain.handle(IPC_CHANNELS.system.getSessionInfo, () => {
     try {
-      if (typeof id !== 'string' || id.length === 0) return false
+      const sessionInfo = detectRuntimeSessionInfo()
+      lastSessionType = sessionInfo.sessionType
 
-      const success = await macroService.run(id)
-      if (!success) return false
+      structuredLogger.info('Session probe completed.', {
+        scope: 'ipc.system.getSessionInfo',
+        details: {
+          sessionType: sessionInfo.sessionType,
+          rawSession: sessionInfo.rawSession,
+          env: readSessionEnvSnapshot()
+        }
+      })
+
+      return sessionInfo
+    } catch (error) {
+      structuredLogger.error('System getSessionInfo failed.', {
+        scope: 'ipc.system.getSessionInfo',
+        reason: getErrorMessage(error)
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.system.refreshSessionInfo, () => {
+    try {
+      const sessionInfo = detectRuntimeSessionInfo()
+      const previousSessionType = lastSessionType ?? sessionInfo.sessionType
+
+      const result = SessionCheckResultSchema.parse({
+        previousSessionType,
+        sessionInfo,
+        changed: previousSessionType !== sessionInfo.sessionType
+      })
+
+      lastSessionType = sessionInfo.sessionType
+
+      structuredLogger.info('Session refresh completed.', {
+        scope: 'ipc.system.refreshSessionInfo',
+        details: {
+          previousSessionType,
+          currentSessionType: sessionInfo.sessionType,
+          changed: result.changed,
+          rawSession: sessionInfo.rawSession,
+          env: readSessionEnvSnapshot()
+        }
+      })
+
+      return result
+    } catch (error) {
+      structuredLogger.error('System refreshSessionInfo failed.', {
+        scope: 'ipc.system.refreshSessionInfo',
+        reason: getErrorMessage(error)
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.macros.run, async (_, input) => {
+    const correlationId = globalThis.crypto.randomUUID()
+    const fallbackRunId = globalThis.crypto.randomUUID()
+    const parsedRequest =
+      typeof input === 'string'
+        ? RunMacroRequestSchema.safeParse({ id: input })
+        : RunMacroRequestSchema.safeParse(input)
+
+    const id = parsedRequest.success ? parsedRequest.data.id : null
+    const attemptId = parsedRequest.success ? parsedRequest.data.attemptId : undefined
+
+    try {
+      if (!id) {
+        return ManualRunResultSchema.parse({
+          runId: fallbackRunId,
+          success: false,
+          reasonCode: 'INVALID_MACRO_ID'
+        })
+      }
+
+      const result = await macroService.run(id)
+      if (!result.success) {
+        logsService.append({
+          level: 'INFO',
+          runId: result.runId,
+          message: `IPC run response for '${id}': success=false, reason='${result.reasonCode}'${attemptId ? `, attempt='${attemptId}'` : ''}.`
+        })
+
+        structuredLogger.audit({
+          action: 'MACRO_RUN_BLOCKED',
+          targetId: id,
+          correlationId,
+          reason: result.reasonCode.toLowerCase()
+        })
+
+        return ManualRunResultSchema.parse({
+          runId: result.runId,
+          success: false,
+          reasonCode: result.reasonCode
+        })
+      }
 
       const macro = macroService.getById(id)
-      if (!macro) return false
+      if (!macro) {
+        return ManualRunResultSchema.parse({
+          runId: result.runId,
+          success: false,
+          reasonCode: 'MACRO_NOT_FOUND'
+        })
+      }
+
+      structuredLogger.audit({
+        action: 'MACRO_RUN',
+        targetId: id,
+        correlationId
+      })
 
       const settings = getSettings()
       if (settings.notifyOnMacroRun && Notification.isSupported()) {
@@ -319,10 +589,32 @@ const registerIpcHandlers = (): void => {
         notification.show()
       }
 
-      return true
+      return ManualRunResultSchema.parse({
+        runId: result.runId,
+        success: true,
+        reasonCode: 'SUCCESS'
+      })
     } catch (error) {
-      console.error('[macros][main] run failed:', error, id)
-      throw error
+      logsService.append({
+        level: 'ERR',
+        runId: fallbackRunId,
+        message: `IPC run handler failed for '${String(id)}': ${getErrorMessage(error)}${attemptId ? ` [attempt=${attemptId}]` : ''}.`
+      })
+
+      structuredLogger.error('Macros run failed.', {
+        scope: 'ipc.macros.run',
+        correlationId,
+        reason: getErrorMessage(error),
+        details: {
+          id,
+          attemptId
+        }
+      })
+      return ManualRunResultSchema.parse({
+        runId: fallbackRunId,
+        success: false,
+        reasonCode: 'IPC_ERROR'
+      })
     }
   })
 }
@@ -331,6 +623,8 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
+  macroMigrationService.migrateLegacyMacrosFromMainStore()
+  macroSeedService.ensureMyFirstMacro()
   settingsService.applyLaunchAtStartup(getSettings().launchAtStartup)
   settingsService.applyThemeMode(getSettings().themeMode)
   macroService.bootstrapShortcuts()

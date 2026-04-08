@@ -14,12 +14,11 @@ Cel: każda zmiana ma być zgodna z aktualną architekturą, testowalna i łatwa
 ### preload
 - Plik: src/preload/index.ts.
 - Wystawia window.electron oraz window.api.
-- window.api jest obecnie oparty o mock bridge:
-  - czyta dane z src/main/store/mockData.ts,
-  - waliduje payloady i dane wyjściowe przez schemy z src/shared/api.ts,
-  - symuluje realtime przez onNewLog, onStatusUpdate, onMacroStatusChange,
-  - pilnuje cleanup timerow/listenerow,
-  - implementuje mock wykonania makra z respektowaniem settings (globalMaster, delayMs, stopOnError).
+- window.api jest cienkim adapterem IPC:
+  - waliduje payloady i dane wyjsciowe przez schemy z src/shared/api.ts,
+  - mapuje invoke do ipcRenderer.invoke,
+  - mapuje subskrypcje realtime do ipcRenderer.on z cleanup przez removeListener,
+  - nie zawiera logiki domenowej, timerow runtime ani in-memory mock state.
 
 ### shared
 - Plik kontraktu: src/shared/api.ts.

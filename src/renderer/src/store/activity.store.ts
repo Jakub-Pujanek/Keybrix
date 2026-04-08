@@ -4,7 +4,7 @@ import type { ActivityLog } from '../../../shared/api'
 type ActivityState = {
   logs: ActivityLog[]
   isLoading: boolean
-  loadRecentLogs: () => Promise<void>
+  loadRecentLogs: () => Promise<ActivityLog[]>
   subscribeRealtimeLogs: () => () => void
 }
 
@@ -15,6 +15,7 @@ export const useActivityStore = create<ActivityState>((set) => ({
     set({ isLoading: true })
     const logs = await window.api.logs.getRecent()
     set({ logs, isLoading: false })
+    return logs
   },
   subscribeRealtimeLogs: () => {
     const off = window.api.logs.onNewLog((nextLog) => {

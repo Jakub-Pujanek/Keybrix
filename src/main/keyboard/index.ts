@@ -13,6 +13,125 @@ type RegisterInput = {
 
 const normalizeShortcut = (value: string): string => value.replace(/\s*\+\s*/g, '+').toUpperCase()
 
+const isModifierToken = (token: string): boolean => {
+  return (
+    token === 'CTRL' ||
+    token === 'CONTROL' ||
+    token === 'CMDORCTRL' ||
+    token === 'COMMANDORCONTROL' ||
+    token === 'SHIFT' ||
+    token === 'ALT' ||
+    token === 'OPTION' ||
+    token === 'CMD' ||
+    token === 'COMMAND' ||
+    token === 'META' ||
+    token === 'SUPER'
+  )
+}
+
+const toElectronAccelerator = (shortcut: string): string | null => {
+  const tokens = normalizeShortcut(shortcut)
+    .split('+')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0)
+
+  if (tokens.length === 0) {
+    return null
+  }
+
+  let nonModifierCount = 0
+
+  const mapped = tokens.map((token) => {
+    if (
+      token === 'CTRL' ||
+      token === 'CONTROL' ||
+      token === 'CMDORCTRL' ||
+      token === 'COMMANDORCONTROL'
+    ) {
+      return 'CommandOrControl'
+    }
+
+    if (token === 'SHIFT') {
+      return 'Shift'
+    }
+
+    if (token === 'ALT' || token === 'OPTION') {
+      return 'Alt'
+    }
+
+    if (token === 'CMD' || token === 'COMMAND' || token === 'META' || token === 'SUPER') {
+      return 'Super'
+    }
+
+    if (token.length === 1 && /[A-Z0-9]/.test(token)) {
+      nonModifierCount += 1
+      return token
+    }
+
+    if (/^F([1-9]|1[0-2])$/.test(token)) {
+      nonModifierCount += 1
+      return token
+    }
+
+    if (token === 'ENTER') {
+      nonModifierCount += 1
+      return 'Enter'
+    }
+    if (token === 'SPACE') {
+      nonModifierCount += 1
+      return 'Space'
+    }
+    if (token === 'TAB') {
+      nonModifierCount += 1
+      return 'Tab'
+    }
+    if (token === 'ESC') {
+      nonModifierCount += 1
+      return 'Esc'
+    }
+    if (token === 'BACKSPACE') {
+      nonModifierCount += 1
+      return 'Backspace'
+    }
+    if (token === 'DELETE') {
+      nonModifierCount += 1
+      return 'Delete'
+    }
+    if (token === 'UP') {
+      nonModifierCount += 1
+      return 'Up'
+    }
+    if (token === 'DOWN') {
+      nonModifierCount += 1
+      return 'Down'
+    }
+    if (token === 'LEFT') {
+      nonModifierCount += 1
+      return 'Left'
+    }
+    if (token === 'RIGHT') {
+      nonModifierCount += 1
+      return 'Right'
+    }
+
+    return null
+  })
+
+  if (mapped.some((token) => token === null)) {
+    return null
+  }
+
+  if (nonModifierCount !== 1) {
+    return null
+  }
+
+  if (tokens.every((token) => isModifierToken(token))) {
+    return null
+  }
+
+  return mapped.join('+')
+}
+
 export class ShortcutManager {
   private readonly registry: ShortcutRegistry
   private readonly macroShortcutMap = new Map<string, string>()
@@ -22,15 +141,19 @@ export class ShortcutManager {
     this.registry = registry
   }
 
-  canRegister(macroId: string, shortcut: string): boolean {
-    const normalized = normalizeShortcut(shortcut)
-    const owner = this.shortcutMacroMap.get(normalized)
+  isShortcutFormatSupported(shortcut: string): boolean {
+    return toElectronAccelerator(shortcut) !== null
+  }
 
-    if (owner && owner !== macroId) {
+  canRegister(macroId: string, shortcut: string): boolean {
+    const accelerator = toElectronAccelerator(shortcut)
+    if (!accelerator) {
       return false
     }
 
-    if (this.registry.isRegistered(normalized) && owner !== macroId) {
+    const owner = this.shortcutMacroMap.get(accelerator)
+
+    if (owner && owner !== macroId) {
       return false
     }
 
@@ -38,27 +161,45 @@ export class ShortcutManager {
   }
 
   registerMacro(input: RegisterInput): boolean {
-    const normalized = normalizeShortcut(input.shortcut)
-    if (!this.canRegister(input.macroId, normalized)) {
+    const accelerator = toElectronAccelerator(input.shortcut)
+    if (!accelerator) {
+      return false
+    }
+
+    if (!this.canRegister(input.macroId, input.shortcut)) {
       return false
     }
 
     const previous = this.macroShortcutMap.get(input.macroId)
-    if (previous && previous !== normalized) {
+    if (previous && previous !== accelerator) {
       this.unregisterByMacroId(input.macroId)
     }
 
-    if (previous === normalized) {
+    if (previous === accelerator) {
       return true
     }
 
-    const registered = this.registry.register(normalized, input.onTrigger)
+    // Recover from stale app-level registrations (e.g. dev main reload) not tracked in maps.
+    if (
+      this.registry.isRegistered(accelerator) &&
+      this.shortcutMacroMap.get(accelerator) !== input.macroId
+    ) {
+      this.registry.unregister(accelerator)
+    }
+
+    let registered = false
+    try {
+      registered = this.registry.register(accelerator, input.onTrigger)
+    } catch {
+      registered = false
+    }
+
     if (!registered) {
       return false
     }
 
-    this.macroShortcutMap.set(input.macroId, normalized)
-    this.shortcutMacroMap.set(normalized, input.macroId)
+    this.macroShortcutMap.set(input.macroId, accelerator)
+    this.shortcutMacroMap.set(accelerator, input.macroId)
 
     return true
   }

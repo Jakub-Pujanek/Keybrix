@@ -13,7 +13,8 @@
     "title": {
       "dashboard": "Dashboard",
       "editor": "Block Editor",
-      "settings": "Settings"
+      "settings": "Settings",
+      "waylandGuide": "Wayland Guide"
     },
     "badge": {
       "macroBuilder": "Macro Builder",
@@ -127,36 +128,6 @@
     "enginePipeline": "Engine Pipeline",
     "optimized": "Optimized"
   },
-  "mock": {
-    "macros": {
-      "macro-copy-paste-pro": {
-        "name": "Copy & Paste Pro",
-        "description": "Multi-format clipboard manager for developer snippets and clean text formatting."
-      },
-      "macro-open-browser": {
-        "name": "Open Browser",
-        "description": "Launches dev environment browsers with pre-authenticated sessions and clear cache."
-      },
-      "macro-type-signature": {
-        "name": "Type Signature",
-        "description": "Inserts context-aware email signatures based on active application detection."
-      },
-      "macro-screenshot-save": {
-        "name": "Screenshot + Save",
-        "description": "Captures active window, optimizes as PNG, and uploads to cloud project folder."
-      },
-      "macro-docker-clean": {
-        "name": "Docker Clean",
-        "description": "Stops all containers, prunes unused volumes, and restarts the core dev stack."
-      }
-    },
-    "logs": {
-      "log-1": "Macro '{{macroName}}' initialized successfully.",
-      "log-2": "Input detected: [CTRL+SHIFT+C] mapping to slot 0x42.",
-      "log-3": "KeyBrix Engine v2.4.0 background service is stable.",
-      "log-4": "Memory pressure detected at logic node 'Image Processor'. Self-healing triggered."
-    }
-  },
   "runtime": {
     "samples": {
       "dockerCleanCompleted": "Macro 'Docker Clean' completed stack refresh.",
@@ -178,5 +149,41 @@
   },
   "notifications": {
     "macroStarted": "Macro '{{macroName}}' started."
+  },
+  "wayland": {
+    "banner": {
+      "blocked": {
+        "title": "Wayland session detected",
+        "body": "Simulated keyboard and mouse actions can be blocked in Wayland. Switch to X11 for reliable macro execution."
+      },
+      "checking": {
+        "title": "Checking current session",
+        "body": "Refreshing runtime session data from the system.",
+        "short": "Checking..."
+      },
+      "success": {
+        "title": "X11 session confirmed",
+        "body": "Input injection is available. The warning banner will hide automatically."
+      },
+      "unknown": {
+        "title": "Session type is unknown",
+        "body": "The desktop session could not be detected. Verify your login session and try again."
+      },
+      "checkNow": "Check session now",
+      "openGuide": "How to switch to X11"
+    },
+    "guide": {
+      "title": "Switch from Wayland to X11",
+      "subtitle": "Follow these steps in your display manager before starting KeyBrix again.",
+      "stepsTitle": "Recommended steps",
+      "steps": {
+        "step1": "Log out from your current desktop session.",
+        "step2": "On the login screen, open session options (gear icon or equivalent menu).",
+        "step3": "Choose an X11 session (often named \"Ubuntu on Xorg\" or \"Plasma (X11)\").",
+        "step4": "Log in again and use \"Check session now\" in KeyBrix."
+      },
+      "disclaimer": "Session names may differ across distributions and desktop environments.",
+      "back": "Back"
+    }
   }
 }

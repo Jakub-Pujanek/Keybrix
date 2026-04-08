@@ -78,7 +78,10 @@ body,
   }
 
   body {
-    @apply m-0 overflow-hidden antialiased;
+    margin: 0;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-family: 'Space Grotesk', 'Manrope', 'Segoe UI', sans-serif;
     background-color: var(--kb-bg-main);
     color: var(--kb-text-main);

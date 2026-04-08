@@ -5,10 +5,18 @@ import { macroRepository } from './macro.repository'
 import { settingsService } from './settings.service'
 import { statsService } from './stats.service'
 import { shortcutManager } from '../keyboard'
+import { structuredLogger } from './structured-logger.service'
+import type { MacroRunnerReasonCode } from '../macro-runner'
 
 const normalizeShortcut = (value: string): string => value.replace(/\s*\+\s*/g, '+').toUpperCase()
 
 type MacroStatusListener = (event: { id: string; newStatus: Macro['status'] }) => void
+
+export type MacroServiceRunResult = {
+  runId: string
+  success: boolean
+  reasonCode: MacroRunnerReasonCode | 'ALREADY_RUNNING' | 'MACRO_NOT_FOUND' | 'GLOBAL_MASTER_OFF'
+}
 
 export class MacroService {
   private readonly statusListeners = new Set<MacroStatusListener>()
@@ -38,7 +46,14 @@ export class MacroService {
       throw new Error('Shortcut conflict detected.')
     }
 
-    const macro = macroRepository.save(normalizedInput)
+    if (
+      normalizedInput.shortcut &&
+      !shortcutManager.isShortcutFormatSupported(normalizedInput.shortcut)
+    ) {
+      throw new Error('Invalid shortcut format. Use modifiers plus exactly one key.')
+    }
+
+    let macro = macroRepository.save(normalizedInput)
     logsService.append({
       level: 'INFO',
       message: `Macro '${macro.name}' saved.`
@@ -57,7 +72,13 @@ export class MacroService {
       })
 
       if (!registered) {
-        throw new Error('Shortcut conflict detected.')
+        macroRepository.toggleActive(macro.id, false)
+        macro = macroRepository.getById(macro.id) ?? macro
+
+        logsService.append({
+          level: 'WARN',
+          message: `Global shortcut '${macro.shortcut}' could not be registered. Macro was saved as disabled.`
+        })
       }
     }
 
@@ -75,6 +96,11 @@ export class MacroService {
 
   delete(id: string): boolean {
     const current = macroRepository.getById(id)
+
+    if (this.activeRuns.has(id)) {
+      this.cancelledRuns.add(id)
+    }
+
     shortcutManager.unregisterByMacroId(id)
     const deleted = macroRepository.delete(id)
 
@@ -82,6 +108,10 @@ export class MacroService {
       logsService.append({
         level: 'WARN',
         message: `Macro '${current?.name ?? id}' deleted.`
+      })
+      structuredLogger.audit({
+        action: 'MACRO_DELETED',
+        targetId: id
       })
     }
 
@@ -103,6 +133,14 @@ export class MacroService {
     if (isActive) {
       const macro = macroRepository.getById(id)
       if (!macro) return false
+
+      if (!shortcutManager.isShortcutFormatSupported(macro.shortcut)) {
+        logsService.append({
+          level: 'WARN',
+          message: `Shortcut '${macro.shortcut}' has unsupported format.`
+        })
+        return false
+      }
 
       if (!shortcutManager.canRegister(id, macro.shortcut)) {
         logsService.append({
@@ -148,6 +186,14 @@ export class MacroService {
           id: macro.id,
           newStatus: macro.status
         })
+
+        structuredLogger.audit({
+          action: 'MACRO_TOGGLED',
+          targetId: macro.id,
+          meta: {
+            isActive
+          }
+        })
       }
     }
 
@@ -189,69 +235,145 @@ export class MacroService {
     }
   }
 
-  async run(id: string): Promise<boolean> {
-    if (this.activeRuns.has(id)) {
-      logsService.append({
-        level: 'WARN',
-        message: `Macro '${id}' is already running.`
-      })
-      return false
-    }
-
-    const macro = macroRepository.getById(id)
-    if (!macro) return false
-
-    const settings = settingsService.get()
-    if (!settings.globalMaster) {
-      logsService.append({
-        level: 'WARN',
-        message: `Global master is OFF. Manual run blocked for '${macro.name}'.`
-      })
-      return false
-    }
-
-    const running = macroRepository.updateRuntimeState(id, 'RUNNING', true)
-    if (!running) return false
-
-    this.activeRuns.add(id)
-    this.cancelledRuns.delete(id)
-
-    this.emitStatus({ id, newStatus: 'RUNNING' })
-
-    const result = await macroRunner.runMacro({
-      macro: running,
-      settings: {
-        globalMaster: settings.globalMaster,
-        delayMs: settings.delayMs,
-        stopOnError: settings.stopOnError
-      },
-      onLog: ({ level, message }) => {
-        logsService.append({ level, message })
-      },
-      isGlobalMasterEnabled: () => settingsService.get().globalMaster,
-      shouldAbort: () => this.cancelledRuns.has(id)
+  async run(id: string): Promise<MacroServiceRunResult> {
+    const runId = globalThis.crypto.randomUUID()
+    logsService.append({
+      level: 'RUN',
+      runId,
+      message: `Manual run request received for macro '${id}'.`
     })
 
-    this.activeRuns.delete(id)
-
-    const cancelled = this.cancelledRuns.has(id)
-    if (cancelled) {
-      this.cancelledRuns.delete(id)
-    }
-
-    const finalStatus = !cancelled && result.success ? 'ACTIVE' : 'IDLE'
-    const finalActive = !cancelled && result.success
-    const finished = macroRepository.updateRuntimeState(id, finalStatus, finalActive)
-
-    if (finished) {
-      this.emitStatus({ id: finished.id, newStatus: finished.status })
-      statsService.recordRun({
-        success: result.success,
-        timeSavedMinutes: result.success ? 1 : 0
+    const finalize = (result: MacroServiceRunResult): MacroServiceRunResult => {
+      logsService.append({
+        level: result.success ? 'INFO' : 'WARN',
+        runId,
+        message: `Manual run finished for macro '${id}' with reason '${result.reasonCode}'.`
       })
+
+      return result
     }
 
-    return result.success
+    try {
+      if (this.activeRuns.has(id)) {
+        logsService.append({
+          level: 'WARN',
+          runId,
+          message: `Macro '${id}' is already running.`
+        })
+        structuredLogger.audit({
+          action: 'MACRO_RUN_BLOCKED',
+          targetId: id,
+          reason: 'already-running'
+        })
+        return finalize({ runId, success: false, reasonCode: 'ALREADY_RUNNING' })
+      }
+
+      const macro = macroRepository.getById(id)
+      if (!macro) {
+        logsService.append({
+          level: 'WARN',
+          runId,
+          message: `Macro '${id}' was not found.`
+        })
+        return finalize({ runId, success: false, reasonCode: 'MACRO_NOT_FOUND' })
+      }
+
+      const settings = settingsService.get()
+      if (!settings.globalMaster) {
+        logsService.append({
+          level: 'WARN',
+          runId,
+          message: `Global master is OFF. Manual run blocked for '${macro.name}'.`
+        })
+        structuredLogger.audit({
+          action: 'MACRO_RUN_BLOCKED',
+          targetId: id,
+          reason: 'global-master-off'
+        })
+        return finalize({ runId, success: false, reasonCode: 'GLOBAL_MASTER_OFF' })
+      }
+
+      const running = macroRepository.updateRuntimeState(id, 'RUNNING', true)
+      if (!running) {
+        logsService.append({
+          level: 'ERR',
+          runId,
+          message: `Macro '${id}' failed to enter RUNNING state.`
+        })
+        return finalize({ runId, success: false, reasonCode: 'RUNNER_FAILED' })
+      }
+
+      this.activeRuns.add(id)
+      this.cancelledRuns.delete(id)
+
+      this.emitStatus({ id, newStatus: 'RUNNING' })
+
+      const result = await macroRunner.runMacro({
+        macro: running,
+        settings: {
+          globalMaster: settings.globalMaster,
+          delayMs: settings.delayMs,
+          stopOnError: settings.stopOnError
+        },
+        onLog: ({ level, message }) => {
+          logsService.append({ level, message, runId })
+        },
+        isGlobalMasterEnabled: () => settingsService.get().globalMaster,
+        shouldAbort: () => this.cancelledRuns.has(id)
+      })
+
+      this.activeRuns.delete(id)
+
+      const cancelled = this.cancelledRuns.has(id)
+      if (cancelled) {
+        this.cancelledRuns.delete(id)
+      }
+
+      const effectiveResult: MacroServiceRunResult = cancelled
+        ? { runId, success: false, reasonCode: 'ABORTED' }
+        : { runId, success: result.success, reasonCode: result.reasonCode }
+
+      const finalStatus = effectiveResult.success ? 'ACTIVE' : 'IDLE'
+      const finalActive = effectiveResult.success
+      const finished = macroRepository.updateRuntimeState(id, finalStatus, finalActive)
+
+      if (finished) {
+        this.emitStatus({ id: finished.id, newStatus: finished.status })
+        statsService.recordRun({
+          success: effectiveResult.success,
+          timeSavedMinutes: effectiveResult.success ? 1 : 0
+        })
+
+        structuredLogger.audit({
+          action: effectiveResult.success ? 'MACRO_RUN' : 'MACRO_RUN_BLOCKED',
+          targetId: finished.id,
+          reason: effectiveResult.success ? undefined : effectiveResult.reasonCode.toLowerCase()
+        })
+      }
+
+      return finalize(effectiveResult)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown error'
+      logsService.append({
+        level: 'ERR',
+        runId,
+        message: `Manual run crashed for macro '${id}': ${reason}.`
+      })
+
+      structuredLogger.error('Macro run crashed unexpectedly.', {
+        scope: 'macro.service.run',
+        reason,
+        details: {
+          id,
+          runId
+        }
+      })
+
+      this.activeRuns.delete(id)
+      this.cancelledRuns.delete(id)
+
+      return finalize({ runId, success: false, reasonCode: 'RUNNER_FAILED' })
+    }
   }
 
   reserveShortcut(input: {
@@ -259,6 +381,10 @@ export class MacroService {
     source: 'topbar' | 'start-block' | 'press-key-block'
   }): boolean {
     const normalized = normalizeShortcut(input.keys)
+    if (!shortcutManager.isShortcutFormatSupported(normalized)) {
+      return false
+    }
+
     if (this.hasShortcutConflict(normalized)) {
       return false
     }

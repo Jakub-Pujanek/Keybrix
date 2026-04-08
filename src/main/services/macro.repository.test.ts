@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 class MockStore<T extends Record<string, unknown>> {
   private readonly data = new Map<string, unknown>()
@@ -23,8 +26,19 @@ vi.mock('electron-store', () => ({
   default: MockStore
 }))
 
+let testUserDataDir = ''
+
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => testUserDataDir)
+  }
+}))
+
 describe('MacroRepository', () => {
   beforeEach(async () => {
+    testUserDataDir = mkdtempSync(join(tmpdir(), 'keybrix-macro-repository-'))
+    rmSync(testUserDataDir, { recursive: true, force: true })
+
     vi.resetModules()
     const { mainStore, INITIAL_MAIN_STORE_STATE } = await import('../store')
     mainStore.setState(INITIAL_MAIN_STORE_STATE)
@@ -60,7 +74,7 @@ describe('MacroRepository', () => {
 
     expect(deleted).toBe(true)
     expect(macroRepository.getById(saved.id)).toBeNull()
-    expect(macroRepository.getAll()).toHaveLength(0)
+    expect(macroRepository.getAll().some((macro) => macro.id === 'macro-my-first')).toBe(true)
   })
 
   it('toggles macro state and status', async () => {
@@ -77,5 +91,14 @@ describe('MacroRepository', () => {
     expect(toggled).toBe(true)
     expect(macroRepository.getById(saved.id)?.isActive).toBe(true)
     expect(macroRepository.getById(saved.id)?.status).toBe('ACTIVE')
+  })
+
+  it('ensures My First Macro when list is empty', async () => {
+    const { macroRepository } = await import('./macro.repository')
+
+    const all = macroRepository.getAll()
+
+    expect(all.length).toBeGreaterThan(0)
+    expect(all.some((macro) => macro.id === 'macro-my-first')).toBe(true)
   })
 })

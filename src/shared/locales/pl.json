@@ -13,7 +13,8 @@
     "title": {
       "dashboard": "Panel",
       "editor": "Edytor Bloków",
-      "settings": "Ustawienia"
+      "settings": "Ustawienia",
+      "waylandGuide": "Przewodnik Wayland"
     },
     "badge": {
       "macroBuilder": "Konstruktor Makr",
@@ -127,36 +128,6 @@
     "enginePipeline": "Pipeline Silnika",
     "optimized": "Zoptymalizowany"
   },
-  "mock": {
-    "macros": {
-      "macro-copy-paste-pro": {
-        "name": "Kopiuj i Wklej Pro",
-        "description": "Menedżer schowka dla snippettów deweloperskich i czystego formatowania tekstu."
-      },
-      "macro-open-browser": {
-        "name": "Otwórz Przeglądarkę",
-        "description": "Uruchamia przeglądarki deweloperskie z gotowymi sesjami i czyszczeniem cache."
-      },
-      "macro-type-signature": {
-        "name": "Wpisz Podpis",
-        "description": "Wstawia podpis e-mail w zależności od aktywnej aplikacji."
-      },
-      "macro-screenshot-save": {
-        "name": "Zrzut i Zapis",
-        "description": "Przechwytuje aktywne okno, optymalizuje PNG i wysyła do folderu w chmurze."
-      },
-      "macro-docker-clean": {
-        "name": "Czyszczenie Dockera",
-        "description": "Zatrzymuje kontenery, usuwa nieużywane wolumeny i restartuje stos deweloperski."
-      }
-    },
-    "logs": {
-      "log-1": "Makro '{{macroName}}' zainicjalizowano pomyślnie.",
-      "log-2": "Wykryto wejście: [CTRL+SHIFT+C] przypisanie do slotu 0x42.",
-      "log-3": "Usługa KeyBrix Engine v2.4.0 działa stabilnie w tle.",
-      "log-4": "Wykryto presje pamięci przy węźle 'Image Processor'. Uruchomiono samonaprawe."
-    }
-  },
   "runtime": {
     "samples": {
       "dockerCleanCompleted": "Makro 'Docker Clean' zakonczyło odswiezenie stosu.",
@@ -178,5 +149,41 @@
   },
   "notifications": {
     "macroStarted": "Makro '{{macroName}}' zostało uruchomione."
+  },
+  "wayland": {
+    "banner": {
+      "blocked": {
+        "title": "Wykryto sesje Wayland",
+        "body": "Symulowane akcje klawiatury i myszy moga byc blokowane w Wayland. Przelacz sesje na X11, aby uruchamiac makra stabilnie."
+      },
+      "checking": {
+        "title": "Sprawdzanie aktualnej sesji",
+        "body": "Odswiezanie danych sesji runtime z systemu.",
+        "short": "Sprawdzanie..."
+      },
+      "success": {
+        "title": "Potwierdzono sesje X11",
+        "body": "Wstrzykiwanie inputu jest dostepne. Baner ostrzezenia ukryje sie automatycznie."
+      },
+      "unknown": {
+        "title": "Nieznany typ sesji",
+        "body": "Nie udalo sie wykryc sesji desktop. Zweryfikuj sposob logowania i sprobuj ponownie."
+      },
+      "checkNow": "Sprawdz sesje teraz",
+      "openGuide": "Jak przelaczyc na X11"
+    },
+    "guide": {
+      "title": "Jak przejsc z Wayland na X11",
+      "subtitle": "Wykonaj te kroki w menedzerze logowania przed ponownym uruchomieniem KeyBrix.",
+      "stepsTitle": "Zalecane kroki",
+      "steps": {
+        "step1": "Wyloguj sie z aktualnej sesji pulpitu.",
+        "step2": "Na ekranie logowania otworz opcje sesji (ikona kola zebatego lub analogiczne menu).",
+        "step3": "Wybierz sesje X11 (czesto \"Ubuntu on Xorg\" albo \"Plasma (X11)\").",
+        "step4": "Zaloguj sie ponownie i uzyj w KeyBrix przycisku \"Sprawdz sesje teraz\"."
+      },
+      "disclaimer": "Nazwy sesji moga sie roznic w zaleznosci od dystrybucji i srodowiska graficznego.",
+      "back": "Wroc"
+    }
   }
 }

@@ -8,20 +8,18 @@ import {
 } from 'lucide-react'
 import { useRef } from 'react'
 import type { EditorBlockType } from '../../../../../shared/api'
+import {
+  BLOCK_REGISTRY,
+  type BlockGroup,
+  type BlockIcon
+} from '../../../../../shared/block-registry'
 import { useI18n } from '../../../lib/useI18n'
 
 type BlocksLibraryPanelProps = {
   onAddBlock: (type: EditorBlockType) => void
 }
 
-type LibraryItem = {
-  labelKey: StringKey
-  type: EditorBlockType
-  icon: React.ComponentType<{ className?: string }>
-  group: GroupName
-}
-
-type GroupName = 'triggers' | 'inputKeys' | 'mouseActions' | 'logicFlow'
+type GroupName = BlockGroup
 type StringKey =
   | 'editor.library.blocks.start'
   | 'editor.library.blocks.pressKey'
@@ -31,42 +29,30 @@ type StringKey =
   | 'editor.library.blocks.repeat'
   | 'editor.library.blocks.infiniteLoop'
 
-const items: LibraryItem[] = [
-  { labelKey: 'editor.library.blocks.start', type: 'START', icon: MoveRight, group: 'triggers' },
-  {
-    labelKey: 'editor.library.blocks.pressKey',
-    type: 'PRESS_KEY',
-    icon: Keyboard,
-    group: 'inputKeys'
-  },
-  {
-    labelKey: 'editor.library.blocks.typeText',
-    type: 'TYPE_TEXT',
-    icon: TextCursorInput,
-    group: 'inputKeys'
-  },
-  {
-    labelKey: 'editor.library.blocks.mouseClick',
-    type: 'MOUSE_CLICK',
-    icon: MousePointerClick,
-    group: 'mouseActions'
-  },
-  { labelKey: 'editor.library.blocks.wait', type: 'WAIT', icon: Filter, group: 'logicFlow' },
-  {
-    labelKey: 'editor.library.blocks.repeat',
-    type: 'REPEAT',
-    icon: Repeat2,
-    group: 'logicFlow'
-  },
-  {
-    labelKey: 'editor.library.blocks.infiniteLoop',
-    type: 'INFINITE_LOOP',
-    icon: Repeat2,
-    group: 'logicFlow'
-  }
-]
+const groupOrder: GroupName[] = ['triggers', 'inputKeys', 'mouseActions', 'logicFlow']
 
-const groupOrder: LibraryItem['group'][] = ['triggers', 'inputKeys', 'mouseActions', 'logicFlow']
+type LibraryItem = {
+  labelKey: StringKey
+  type: EditorBlockType
+  icon: React.ComponentType<{ className?: string }>
+  group: GroupName
+}
+
+const iconMap: Record<BlockIcon, React.ComponentType<{ className?: string }>> = {
+  moveRight: MoveRight,
+  keyboard: Keyboard,
+  textCursorInput: TextCursorInput,
+  mousePointerClick: MousePointerClick,
+  filter: Filter,
+  repeat2: Repeat2
+}
+
+const items: LibraryItem[] = BLOCK_REGISTRY.map((item) => ({
+  type: item.type,
+  group: item.group,
+  labelKey: item.labelKey,
+  icon: iconMap[item.icon]
+}))
 
 const groupAccentClass: Record<GroupName, string> = {
   triggers: 'text-[rgb(var(--kb-accent-rgb))]',

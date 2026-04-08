@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react'
 import Header from './Header'
 import Sidebar from './Sidebar'
+import SessionStatusBanner from '../composites/system/SessionStatusBanner'
 
 function AppLayout({ children }: PropsWithChildren): React.JSX.Element {
   return (
@@ -9,9 +10,12 @@ function AppLayout({ children }: PropsWithChildren): React.JSX.Element {
         <Sidebar />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <Header />
-          <main className="flex-1 min-w-0 overflow-hidden px-6 py-5">{children}</main>
+          <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5">
+            {children}
+          </main>
         </div>
       </div>
+      <SessionStatusBanner />
     </div>
   )
 }
