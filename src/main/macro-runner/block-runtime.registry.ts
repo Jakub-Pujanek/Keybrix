@@ -1,5 +1,10 @@
 import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js'
-import { RuntimeCommandSchema, type EditorBlockType, type RuntimeCommand } from '../../shared/api'
+import {
+  RuntimeCommandSchema,
+  type EditorBlockType,
+  type RuntimeCommand,
+  type SessionType
+} from '../../shared/api'
 import { BLOCK_REGISTRY_BY_TYPE } from '../../shared/block-registry'
 import { MAX_REPEAT_ITERATIONS, MAX_REPEAT_NESTED_COMMANDS } from '../../shared/macro-runtime'
 
@@ -10,6 +15,7 @@ type RuntimeSettings = {
 
 type RuntimeExecutionContext = {
   settings: RuntimeSettings
+  sessionType: SessionType
   onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void
   shouldAbort: () => boolean
   isGlobalMasterEnabled: () => boolean
@@ -53,9 +59,8 @@ const sleep = async (ms: number): Promise<void> =>
 
 type CommandTimeoutKind = 'keyboard' | 'mouse'
 
-const getCommandTimeoutMs = (kind: CommandTimeoutKind): number => {
-  const sessionType = (process.env['XDG_SESSION_TYPE'] ?? '').toLowerCase()
-  const isWayland = process.platform === 'linux' && sessionType === 'wayland'
+const getCommandTimeoutMs = (kind: CommandTimeoutKind, sessionType: SessionType): number => {
+  const isWayland = sessionType === 'WAYLAND'
 
   if (kind === 'keyboard') {
     return isWayland ? 5000 : 2500
@@ -148,7 +153,7 @@ const runPressKey = async (
     level: 'RUN',
     message: `Pressing key combination: ${tokens.join(' + ')}.`
   })
-  const keyboardTimeoutMs = getCommandTimeoutMs('keyboard')
+  const keyboardTimeoutMs = getCommandTimeoutMs('keyboard', context.sessionType)
   await executeWithTimeout(
     () => keyboard.pressKey(...keys),
     keyboardTimeoutMs,
@@ -186,7 +191,7 @@ const runTypeText = async (
     level: 'RUN',
     message: `Typing text (${text.length} chars).`
   })
-  const keyboardTimeoutMs = getCommandTimeoutMs('keyboard')
+  const keyboardTimeoutMs = getCommandTimeoutMs('keyboard', context.sessionType)
   await executeWithTimeout(
     () => keyboard.type(text),
     keyboardTimeoutMs,
@@ -226,7 +231,7 @@ const runMouseClick = async (
     level: 'RUN',
     message: `Clicking mouse '${buttonLabel}' at (${x}, ${y}).`
   })
-  const mouseTimeoutMs = getCommandTimeoutMs('mouse')
+  const mouseTimeoutMs = getCommandTimeoutMs('mouse', context.sessionType)
   await executeWithTimeout(
     () => mouse.setPosition(new Point(x, y)),
     mouseTimeoutMs,

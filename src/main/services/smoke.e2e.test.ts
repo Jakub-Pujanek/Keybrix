@@ -91,7 +91,8 @@ describe('Main smoke e2e flows', () => {
     const runResult = await macroService.run(saved.id)
 
     expect(toggled).toBe(true)
-    expect(runResult).toBe(true)
+    expect(runResult.success).toBe(true)
+    expect(runResult.reasonCode).toBe('SUCCESS')
     expect(statsService.getCounters().totalRuns).toBe(1)
     expect(logsService.getRecent(10).some((log) => log.message.includes('saved.'))).toBe(true)
   })
@@ -112,7 +113,8 @@ describe('Main smoke e2e flows', () => {
     const runResult = await macroService.run(saved.id)
 
     expect(toggleResult).toBe(false)
-    expect(runResult).toBe(false)
+    expect(runResult.success).toBe(false)
+    expect(runResult.reasonCode).toBe('GLOBAL_MASTER_OFF')
   })
 
   it('restart preserves macros, logs and stats from persistent stores', async () => {
@@ -200,7 +202,8 @@ describe('Main smoke e2e flows', () => {
 
       const result = await macroService.run(macroId)
 
-      expect(result).toBe(true)
+      expect(result.success).toBe(true)
+      expect(result.reasonCode).toBe('SUCCESS')
       expect(macroRunner.runMacro).toHaveBeenCalledTimes(1)
 
       const runInput = vi.mocked(macroRunner.runMacro).mock.calls[0]?.[0]

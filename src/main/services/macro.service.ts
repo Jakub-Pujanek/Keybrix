@@ -1,12 +1,11 @@
 import { ToggleMacroInputSchema, type Macro, type SaveMacroInput } from '../../shared/api'
 import { logsService } from './logs.service'
-import { macroRunner } from '../macro-runner'
 import { macroRepository } from './macro.repository'
 import { settingsService } from './settings.service'
 import { statsService } from './stats.service'
 import { shortcutManager } from '../keyboard'
 import { structuredLogger } from './structured-logger.service'
-import type { MacroRunnerReasonCode } from '../macro-runner'
+import type { MacroRunner, MacroRunnerReasonCode } from '../macro-runner'
 
 const normalizeShortcut = (value: string): string => value.replace(/\s*\+\s*/g, '+').toUpperCase()
 
@@ -22,6 +21,48 @@ export class MacroService {
   private readonly statusListeners = new Set<MacroStatusListener>()
   private readonly activeRuns = new Set<string>()
   private readonly cancelledRuns = new Set<string>()
+  private macroRunnerPromise: Promise<MacroRunner> | null = null
+
+  private async getMacroRunner(): Promise<MacroRunner> {
+    if (!this.macroRunnerPromise) {
+      this.macroRunnerPromise = this.loadMacroRunner()
+    }
+
+    return this.macroRunnerPromise
+  }
+
+  private async loadMacroRunner(): Promise<MacroRunner> {
+    const originalEmitWarning = process.emitWarning
+    const patchedEmitWarning: typeof process.emitWarning = (
+      warning: string | Error,
+      type?: string,
+      code?: string,
+      ctor?: Function
+    ): void => {
+      const warningMessage = typeof warning === 'string' ? warning : warning.message
+      const warningCode = typeof warning === 'object' && warning && 'code' in warning
+        ? String((warning as { code?: unknown }).code ?? '')
+        : (code ?? '')
+
+      if (
+        warningCode === 'DEP0040' ||
+        warningMessage.includes('The `punycode` module is deprecated')
+      ) {
+        return
+      }
+
+      originalEmitWarning.call(process, warning, type, code, ctor)
+    }
+
+    process.emitWarning = patchedEmitWarning
+
+    try {
+      const module = await import('../macro-runner')
+      return module.macroRunner
+    } finally {
+      process.emitWarning = originalEmitWarning
+    }
+  }
 
   getAll(): Macro[] {
     return macroRepository.getAll()
@@ -308,6 +349,7 @@ export class MacroService {
 
       this.emitStatus({ id, newStatus: 'RUNNING' })
 
+      const macroRunner = await this.getMacroRunner()
       const result = await macroRunner.runMacro({
         macro: running,
         settings: {
@@ -329,9 +371,11 @@ export class MacroService {
         this.cancelledRuns.delete(id)
       }
 
+      const normalizedReasonCode = result.reasonCode ?? (result.success ? 'SUCCESS' : 'RUNNER_FAILED')
+
       const effectiveResult: MacroServiceRunResult = cancelled
         ? { runId, success: false, reasonCode: 'ABORTED' }
-        : { runId, success: result.success, reasonCode: result.reasonCode }
+        : { runId, success: result.success, reasonCode: normalizedReasonCode }
 
       const finalStatus = effectiveResult.success ? 'ACTIVE' : 'IDLE'
       const finalActive = effectiveResult.success

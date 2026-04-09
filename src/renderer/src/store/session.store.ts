@@ -45,7 +45,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           sessionType: 'UNKNOWN',
           rawSession: null,
           detectedAt: fallbackDetectedAt,
-          isInputInjectionSupported: false
+          isInputInjectionSupported: false,
+          detectionSource: 'UNKNOWN',
+          detectionConfidence: 'LOW'
         },
         lastBlockedAt: null
       })

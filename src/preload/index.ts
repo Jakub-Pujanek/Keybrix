@@ -7,18 +7,34 @@ import {
   IPC_CHANNELS,
   ManualRunReasonCodeSchema,
   MacroStatusChangeEventSchema,
-  RuntimeSessionInfoSchema,
-  SessionCheckResultSchema,
   SystemStatusSchema,
   UpdateAppSettingsInputSchema,
   type ActivityLog,
+  type SessionCheckResult,
+  type SessionDetectionConfidence,
+  type SessionDetectionSource,
+  type SessionDiagnostics,
   type ManualRunReasonCode,
   type Macro,
-  type KeybrixApi
+  type KeybrixApi,
+  type RuntimeSessionInfo,
+  type SessionType
 } from '../shared/api'
 
 const MACRO_STATUSES = new Set<Macro['status']>(['RUNNING', 'IDLE', 'ACTIVE', 'PAUSED'])
 const MANUAL_RUN_REASON_CODES = new Set<ManualRunReasonCode>(ManualRunReasonCodeSchema.options)
+const SESSION_TYPES = new Set<SessionType>(['WAYLAND', 'X11', 'UNKNOWN'])
+const SESSION_DETECTION_SOURCES = new Set<SessionDetectionSource>([
+  'LOGINCTL',
+  'XDG_SESSION_TYPE',
+  'DESKTOP_SESSION',
+  'XDG_SESSION_DESKTOP',
+  'GDMSESSION',
+  'DISPLAY',
+  'WAYLAND_DISPLAY',
+  'UNKNOWN'
+])
+const SESSION_DETECTION_CONFIDENCE = new Set<SessionDetectionConfidence>(['HIGH', 'MEDIUM', 'LOW'])
 
 const isManualRunReasonCode = (value: unknown): value is ManualRunReasonCode => {
   return typeof value === 'string' && MANUAL_RUN_REASON_CODES.has(value as ManualRunReasonCode)
@@ -26,6 +42,144 @@ const isManualRunReasonCode = (value: unknown): value is ManualRunReasonCode => 
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const isSessionType = (value: unknown): value is SessionType =>
+  typeof value === 'string' && SESSION_TYPES.has(value as SessionType)
+
+const isDetectionSource = (value: unknown): value is SessionDetectionSource =>
+  typeof value === 'string' && SESSION_DETECTION_SOURCES.has(value as SessionDetectionSource)
+
+const isDetectionConfidence = (value: unknown): value is SessionDetectionConfidence =>
+  typeof value === 'string' && SESSION_DETECTION_CONFIDENCE.has(value as SessionDetectionConfidence)
+
+const coerceRuntimeSessionInfo = (value: unknown): RuntimeSessionInfo => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid runtime session info payload.')
+  }
+
+  const sessionType = value['sessionType']
+  const rawSession = value['rawSession']
+  const detectedAt = value['detectedAt']
+  const isInputInjectionSupported = value['isInputInjectionSupported']
+  const detectionSource = value['detectionSource']
+  const detectionConfidence = value['detectionConfidence']
+
+  if (!isSessionType(sessionType)) {
+    throw new Error('Invalid runtime session type.')
+  }
+  if (!(rawSession === null || typeof rawSession === 'string')) {
+    throw new Error('Invalid runtime rawSession field.')
+  }
+  if (typeof detectedAt !== 'string' || Number.isNaN(Date.parse(detectedAt))) {
+    throw new Error('Invalid runtime detectedAt field.')
+  }
+  if (typeof isInputInjectionSupported !== 'boolean') {
+    throw new Error('Invalid runtime injection support field.')
+  }
+  if (!isDetectionSource(detectionSource)) {
+    throw new Error('Invalid runtime detection source field.')
+  }
+  if (!isDetectionConfidence(detectionConfidence)) {
+    throw new Error('Invalid runtime detection confidence field.')
+  }
+
+  return {
+    sessionType,
+    rawSession,
+    detectedAt,
+    isInputInjectionSupported,
+    detectionSource,
+    detectionConfidence
+  }
+}
+
+const coerceSessionCheckResult = (value: unknown): SessionCheckResult => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid session check result payload.')
+  }
+
+  const previousSessionType = value['previousSessionType']
+  const sessionInfo = value['sessionInfo']
+  const changed = value['changed']
+
+  if (!isSessionType(previousSessionType)) {
+    throw new Error('Invalid previous session type field.')
+  }
+  if (typeof changed !== 'boolean') {
+    throw new Error('Invalid session check changed field.')
+  }
+
+  return {
+    previousSessionType,
+    sessionInfo: coerceRuntimeSessionInfo(sessionInfo),
+    changed
+  }
+}
+
+const coerceSessionDiagnostics = (value: unknown): SessionDiagnostics => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid session diagnostics payload.')
+  }
+
+  const sessionInfo = coerceRuntimeSessionInfo(value['sessionInfo'])
+  const snapshot = value['snapshot']
+  const probes = value['probes']
+
+  if (!isRecord(snapshot)) {
+    throw new Error('Invalid session diagnostics snapshot payload.')
+  }
+
+  const asNullableString = (input: unknown): string | null => {
+    if (input === null) return null
+    if (typeof input === 'string') return input
+    throw new Error('Invalid session diagnostics snapshot field.')
+  }
+
+  if (!Array.isArray(probes)) {
+    throw new Error('Invalid session diagnostics probes payload.')
+  }
+
+  const normalizedProbes = probes.map((probe) => {
+    if (!isRecord(probe)) {
+      throw new Error('Invalid session diagnostics probe entry.')
+    }
+
+    const step = probe['step']
+    const signal = probe['signal']
+    const matched = probe['matched']
+    const note = probe['note']
+
+    if (typeof step !== 'string' || step.length === 0) {
+      throw new Error('Invalid session diagnostics probe step.')
+    }
+    if (!(signal === null || typeof signal === 'string')) {
+      throw new Error('Invalid session diagnostics probe signal.')
+    }
+    if (typeof matched !== 'boolean') {
+      throw new Error('Invalid session diagnostics probe matched flag.')
+    }
+    if (typeof note !== 'string' || note.length === 0) {
+      throw new Error('Invalid session diagnostics probe note.')
+    }
+
+    return { step, signal, matched, note }
+  })
+
+  return {
+    sessionInfo,
+    snapshot: {
+      xdgSessionType: asNullableString(snapshot['xdgSessionType']),
+      waylandDisplay: asNullableString(snapshot['waylandDisplay']),
+      display: asNullableString(snapshot['display']),
+      desktopSession: asNullableString(snapshot['desktopSession']),
+      xdgSessionDesktop: asNullableString(snapshot['xdgSessionDesktop']),
+      gdmSession: asNullableString(snapshot['gdmSession']),
+      sessionId: asNullableString(snapshot['sessionId']),
+      loginctlSessionType: asNullableString(snapshot['loginctlSessionType'])
+    },
+    probes: normalizedProbes
+  }
 }
 
 const coerceMacro = (value: unknown): Macro | null => {
@@ -334,11 +488,15 @@ const api: KeybrixApi = {
   system: {
     getSessionInfo: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.system.getSessionInfo)
-      return RuntimeSessionInfoSchema.parse(result)
+      return coerceRuntimeSessionInfo(result)
+    },
+    getSessionDiagnostics: async () => {
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.system.getSessionDiagnostics)
+      return coerceSessionDiagnostics(result)
     },
     refreshSessionInfo: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.system.refreshSessionInfo)
-      return SessionCheckResultSchema.parse(result)
+      return coerceSessionCheckResult(result)
     },
     onStatusUpdate: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {

@@ -13,13 +13,13 @@ import {
   ManualRunResultSchema,
   MacroSchema,
   RecordShortcutInputSchema,
-  RuntimeSessionInfoSchema,
   RunMacroRequestSchema,
   SaveMacroInputSchema,
   SessionCheckResultSchema,
+  SessionDiagnosticsSchema,
   ToggleMacroInputSchema,
   UpdateAppSettingsInputSchema,
-  type RuntimeSessionInfo
+  type SessionType
 } from '../shared/api'
 import { settingsService } from './services/settings.service'
 import { logsService } from './services/logs.service'
@@ -30,6 +30,11 @@ import { shortcutManager } from './keyboard'
 import { structuredLogger } from './services/structured-logger.service'
 import { macroMigrationService } from './services/macro-migration.service'
 import { macroSeedService } from './services/macro-seed.service'
+import {
+  detectRuntimeSessionInfo,
+  detectRuntimeSessionDiagnostics,
+  readSessionEnvSnapshot
+} from './services/session-detection.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
@@ -47,100 +52,7 @@ const getSettings = (): AppSettings => settingsService.get()
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : 'Unknown error'
 
-type SessionType = 'WAYLAND' | 'X11' | 'UNKNOWN'
 let lastSessionType: SessionType | null = null
-
-type SessionDetectionSnapshot = {
-  xdgSessionType: string | null
-  waylandDisplay: string | null
-  display: string | null
-  desktopSession: string | null
-}
-
-const resolveSessionType = (rawSession: string | null): SessionType => {
-  if (!rawSession) return 'UNKNOWN'
-
-  const normalized = rawSession.trim().toLowerCase()
-  if (normalized === 'wayland') return 'WAYLAND'
-  if (normalized === 'x11' || normalized === 'xorg') return 'X11'
-
-  return 'UNKNOWN'
-}
-
-const readSessionEnvSnapshot = (): SessionDetectionSnapshot => {
-  const normalize = (value: string | undefined): string | null => {
-    if (typeof value !== 'string') return null
-    const trimmed = value.trim()
-    return trimmed.length > 0 ? trimmed : null
-  }
-
-  return {
-    xdgSessionType: normalize(process.env['XDG_SESSION_TYPE']),
-    waylandDisplay: normalize(process.env['WAYLAND_DISPLAY']),
-    display: normalize(process.env['DISPLAY']),
-    desktopSession: normalize(process.env['DESKTOP_SESSION'])
-  }
-}
-
-const resolveSessionFromSnapshot = (
-  snapshot: SessionDetectionSnapshot
-): { sessionType: SessionType; rawSession: string | null } => {
-  const byXdg = resolveSessionType(snapshot.xdgSessionType)
-  if (byXdg !== 'UNKNOWN') {
-    return {
-      sessionType: byXdg,
-      rawSession: snapshot.xdgSessionType
-    }
-  }
-
-  if (snapshot.waylandDisplay) {
-    return {
-      sessionType: 'WAYLAND',
-      rawSession: 'wayland'
-    }
-  }
-
-  if (snapshot.display) {
-    return {
-      sessionType: 'X11',
-      rawSession: 'x11'
-    }
-  }
-
-  if (snapshot.desktopSession) {
-    const normalizedDesktop = snapshot.desktopSession.toLowerCase()
-    if (normalizedDesktop.includes('wayland')) {
-      return {
-        sessionType: 'WAYLAND',
-        rawSession: snapshot.desktopSession
-      }
-    }
-
-    if (normalizedDesktop.includes('x11') || normalizedDesktop.includes('xorg')) {
-      return {
-        sessionType: 'X11',
-        rawSession: snapshot.desktopSession
-      }
-    }
-  }
-
-  return {
-    sessionType: 'UNKNOWN',
-    rawSession: null
-  }
-}
-
-const detectRuntimeSessionInfo = (): RuntimeSessionInfo => {
-  const snapshot = readSessionEnvSnapshot()
-  const resolved = resolveSessionFromSnapshot(snapshot)
-
-  return RuntimeSessionInfoSchema.parse({
-    sessionType: resolved.sessionType,
-    rawSession: resolved.rawSession,
-    detectedAt: new Date().toISOString(),
-    isInputInjectionSupported: resolved.sessionType === 'X11'
-  })
-}
 
 const broadcastToRenderers = (channel: string, payload: unknown): void => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -472,6 +384,8 @@ const registerIpcHandlers = (): void => {
         details: {
           sessionType: sessionInfo.sessionType,
           rawSession: sessionInfo.rawSession,
+          source: sessionInfo.detectionSource,
+          confidence: sessionInfo.detectionConfidence,
           env: readSessionEnvSnapshot()
         }
       })
@@ -480,6 +394,30 @@ const registerIpcHandlers = (): void => {
     } catch (error) {
       structuredLogger.error('System getSessionInfo failed.', {
         scope: 'ipc.system.getSessionInfo',
+        reason: getErrorMessage(error)
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.system.getSessionDiagnostics, () => {
+    try {
+      const diagnostics = detectRuntimeSessionDiagnostics()
+
+      structuredLogger.info('Session diagnostics requested.', {
+        scope: 'ipc.system.getSessionDiagnostics',
+        details: {
+          sessionType: diagnostics.sessionInfo.sessionType,
+          source: diagnostics.sessionInfo.detectionSource,
+          confidence: diagnostics.sessionInfo.detectionConfidence,
+          probes: diagnostics.probes
+        }
+      })
+
+      return SessionDiagnosticsSchema.parse(diagnostics)
+    } catch (error) {
+      structuredLogger.error('System getSessionDiagnostics failed.', {
+        scope: 'ipc.system.getSessionDiagnostics',
         reason: getErrorMessage(error)
       })
       throw error
@@ -506,6 +444,8 @@ const registerIpcHandlers = (): void => {
           currentSessionType: sessionInfo.sessionType,
           changed: result.changed,
           rawSession: sessionInfo.rawSession,
+          source: sessionInfo.detectionSource,
+          confidence: sessionInfo.detectionConfidence,
           env: readSessionEnvSnapshot()
         }
       })

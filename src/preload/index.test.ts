@@ -24,6 +24,7 @@ describe('preload api bridge', () => {
   const getApi = (): {
     system: {
       getSessionInfo: () => Promise<unknown>
+      getSessionDiagnostics: () => Promise<unknown>
       refreshSessionInfo: () => Promise<unknown>
     }
     logs: {
@@ -42,6 +43,7 @@ describe('preload api bridge', () => {
     (window as unknown as { api: unknown }).api as {
       system: {
         getSessionInfo: () => Promise<unknown>
+        getSessionDiagnostics: () => Promise<unknown>
         refreshSessionInfo: () => Promise<unknown>
       }
       logs: {
@@ -63,7 +65,9 @@ describe('preload api bridge', () => {
       sessionType: 'X11',
       rawSession: 'x11',
       detectedAt: '2026-04-08T20:00:00.000Z',
-      isInputInjectionSupported: true
+      isInputInjectionSupported: true,
+      detectionSource: 'LOGINCTL',
+      detectionConfidence: 'HIGH'
     })
 
     await import('./index')
@@ -74,8 +78,48 @@ describe('preload api bridge', () => {
       sessionType: 'X11',
       rawSession: 'x11',
       detectedAt: '2026-04-08T20:00:00.000Z',
-      isInputInjectionSupported: true
+      isInputInjectionSupported: true,
+      detectionSource: 'LOGINCTL',
+      detectionConfidence: 'HIGH'
     })
+  })
+
+  it('invokes system.getSessionDiagnostics channel and returns parsed payload', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+    invokeMock.mockResolvedValueOnce({
+      sessionInfo: {
+        sessionType: 'X11',
+        rawSession: 'x11',
+        detectedAt: '2026-04-08T20:01:30.000Z',
+        isInputInjectionSupported: true,
+        detectionSource: 'LOGINCTL',
+        detectionConfidence: 'HIGH'
+      },
+      snapshot: {
+        xdgSessionType: 'x11',
+        waylandDisplay: null,
+        display: ':0',
+        desktopSession: 'ubuntu-xorg',
+        xdgSessionDesktop: 'ubuntu-xorg',
+        gdmSession: 'ubuntu-xorg',
+        sessionId: '2',
+        loginctlSessionType: 'x11'
+      },
+      probes: [
+        {
+          step: 'loginctlSessionType',
+          signal: 'x11',
+          matched: true,
+          note: 'Resolved from loginctl session metadata.'
+        }
+      ]
+    })
+
+    await import('./index')
+    const result = await getApi().system.getSessionDiagnostics()
+
+    expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.system.getSessionDiagnostics)
+    expect((result as { sessionInfo: { sessionType: string } }).sessionInfo.sessionType).toBe('X11')
   })
 
   it('invokes system.refreshSessionInfo channel and returns parsed payload', async () => {
@@ -86,7 +130,9 @@ describe('preload api bridge', () => {
         sessionType: 'X11',
         rawSession: 'x11',
         detectedAt: '2026-04-08T20:01:00.000Z',
-        isInputInjectionSupported: true
+        isInputInjectionSupported: true,
+        detectionSource: 'LOGINCTL',
+        detectionConfidence: 'HIGH'
       },
       changed: true
     })
@@ -101,7 +147,9 @@ describe('preload api bridge', () => {
         sessionType: 'X11',
         rawSession: 'x11',
         detectedAt: '2026-04-08T20:01:00.000Z',
-        isInputInjectionSupported: true
+        isInputInjectionSupported: true,
+        detectionSource: 'LOGINCTL',
+        detectionConfidence: 'HIGH'
       },
       changed: true
     })
@@ -113,7 +161,9 @@ describe('preload api bridge', () => {
       sessionType: 'BROKEN',
       rawSession: 'x11',
       detectedAt: '2026-04-08T20:00:00.000Z',
-      isInputInjectionSupported: true
+      isInputInjectionSupported: true,
+      detectionSource: 'LOGINCTL',
+      detectionConfidence: 'HIGH'
     })
 
     await import('./index')
@@ -129,7 +179,9 @@ describe('preload api bridge', () => {
         sessionType: 'X11',
         rawSession: 'x11',
         detectedAt: 'invalid-date',
-        isInputInjectionSupported: true
+        isInputInjectionSupported: true,
+        detectionSource: 'LOGINCTL',
+        detectionConfidence: 'HIGH'
       },
       changed: false
     })

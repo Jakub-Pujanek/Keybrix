@@ -1,10 +1,11 @@
-import { RuntimeCommandSchema, type Macro, type RuntimeCommand } from '../../shared/api'
+import { RuntimeCommandSchema, type Macro, type RuntimeCommand, type SessionType } from '../../shared/api'
 import {
   MAX_REPEAT_NESTING_DEPTH,
   RuntimeCompileDiagnosticSeverity,
   compileNodesToRuntime
 } from '../../shared/macro-runtime'
 import { executeRuntimeCommand } from './block-runtime.registry'
+import { detectRuntimeSessionInfo, readSessionEnvSnapshot } from '../services/session-detection.service'
 
 type RuntimeSettings = {
   globalMaster: boolean
@@ -63,28 +64,26 @@ const extractCommands = (
 }
 
 export class MacroRunner {
-  private isWaylandSession(): boolean {
-    const sessionType = process.env['XDG_SESSION_TYPE'] ?? ''
-    return process.platform === 'linux' && sessionType.toLowerCase() === 'wayland'
-  }
-
   private isTestEnvironment(): boolean {
     return process.env['NODE_ENV'] === 'test' || process.env['VITEST'] === 'true'
   }
 
   private logRuntimeEnvironment(
-    onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void
+    onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void,
+    detectedSessionType: string
   ): void {
-    const sessionType = process.env['XDG_SESSION_TYPE'] ?? 'unknown'
-    const display = process.env['DISPLAY'] ?? 'unset'
-    const waylandDisplay = process.env['WAYLAND_DISPLAY'] ?? 'unset'
+    const snapshot = readSessionEnvSnapshot()
+    const sessionType = snapshot.xdgSessionType ?? 'unknown'
+    const display = snapshot.display ?? 'unset'
+    const waylandDisplay = snapshot.waylandDisplay ?? 'unset'
+    const loginctlType = snapshot.loginctlSessionType ?? 'unknown'
 
     onLog({
       level: 'INFO',
-      message: `Runtime environment: platform=${process.platform}, session=${sessionType}, display=${display}, wayland=${waylandDisplay}.`
+      message: `Runtime environment: platform=${process.platform}, session=${sessionType}, display=${display}, wayland=${waylandDisplay}, loginctl=${loginctlType}, detected=${detectedSessionType}.`
     })
 
-    if (process.platform === 'linux' && sessionType.toLowerCase() === 'wayland') {
+    if (detectedSessionType === 'WAYLAND') {
       onLog({
         level: 'WARN',
         message:
@@ -112,13 +111,13 @@ export class MacroRunner {
       macroName: string
       recursionDepth: number
       settings: RuntimeSettings
+      sessionType: SessionType
       onLog: (entry: { level: 'RUN' | 'INFO' | 'WARN' | 'ERR'; message: string }) => void
       isGlobalMasterEnabled: () => boolean
       shouldAbort?: () => boolean
     }
   ): Promise<RunMacroResult> {
-    const { macroName, recursionDepth, settings, onLog, isGlobalMasterEnabled, shouldAbort } =
-      params
+    const { macroName, recursionDepth, settings, sessionType, onLog, isGlobalMasterEnabled, shouldAbort } = params
 
     if (recursionDepth > MAX_REPEAT_NESTING_DEPTH) {
       onLog({
@@ -150,6 +149,7 @@ export class MacroRunner {
 
         const success = await executeRuntimeCommand(command, {
           settings,
+          sessionType,
           onLog,
           shouldAbort: () => shouldAbort?.() ?? false,
           isGlobalMasterEnabled,
@@ -158,6 +158,7 @@ export class MacroRunner {
               macroName,
               recursionDepth: recursionDepth + 1,
               settings,
+              sessionType,
               onLog,
               isGlobalMasterEnabled,
               shouldAbort
@@ -207,9 +208,10 @@ export class MacroRunner {
       level: 'RUN',
       message: `Manual run started for '${macro.name}'.`
     })
-    this.logRuntimeEnvironment(onLog)
+    const detectedSessionType = detectRuntimeSessionInfo().sessionType
+    this.logRuntimeEnvironment(onLog, detectedSessionType)
 
-    if (this.isWaylandSession() && !this.isTestEnvironment()) {
+    if (detectedSessionType === 'WAYLAND' && !this.isTestEnvironment()) {
       onLog({
         level: 'ERR',
         message:
@@ -244,6 +246,7 @@ export class MacroRunner {
       macroName: macro.name,
       recursionDepth: 0,
       settings,
+      sessionType: detectedSessionType,
       onLog,
       isGlobalMasterEnabled,
       shouldAbort

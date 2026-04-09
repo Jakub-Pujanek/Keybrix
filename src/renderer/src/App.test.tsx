@@ -26,7 +26,9 @@ const buildSessionInfo = (sessionType: RuntimeSessionInfo['sessionType']): Runti
   sessionType,
   rawSession: sessionType.toLowerCase(),
   detectedAt: new Date().toISOString(),
-  isInputInjectionSupported: sessionType === 'X11'
+  isInputInjectionSupported: sessionType === 'X11',
+  detectionSource: sessionType === 'UNKNOWN' ? 'UNKNOWN' : 'LOGINCTL',
+  detectionConfidence: sessionType === 'UNKNOWN' ? 'LOW' : 'HIGH'
 })
 
 const mockApi: KeybrixApi = {

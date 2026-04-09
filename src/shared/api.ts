@@ -19,6 +19,21 @@ export type SystemStatus = z.infer<typeof SystemStatusSchema>
 export const SessionTypeSchema = z.enum(['WAYLAND', 'X11', 'UNKNOWN'])
 export type SessionType = z.infer<typeof SessionTypeSchema>
 
+export const SessionDetectionSourceSchema = z.enum([
+  'LOGINCTL',
+  'XDG_SESSION_TYPE',
+  'DESKTOP_SESSION',
+  'XDG_SESSION_DESKTOP',
+  'GDMSESSION',
+  'DISPLAY',
+  'WAYLAND_DISPLAY',
+  'UNKNOWN'
+])
+export type SessionDetectionSource = z.infer<typeof SessionDetectionSourceSchema>
+
+export const SessionDetectionConfidenceSchema = z.enum(['HIGH', 'MEDIUM', 'LOW'])
+export type SessionDetectionConfidence = z.infer<typeof SessionDetectionConfidenceSchema>
+
 export const MacroSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -147,9 +162,38 @@ export const RuntimeSessionInfoSchema = z.object({
   sessionType: SessionTypeSchema,
   rawSession: z.string().nullable(),
   detectedAt: z.string().datetime(),
-  isInputInjectionSupported: z.boolean()
+  isInputInjectionSupported: z.boolean(),
+  detectionSource: SessionDetectionSourceSchema,
+  detectionConfidence: SessionDetectionConfidenceSchema
 })
 export type RuntimeSessionInfo = z.infer<typeof RuntimeSessionInfoSchema>
+
+export const SessionDetectionSnapshotSchema = z.object({
+  xdgSessionType: z.string().nullable(),
+  waylandDisplay: z.string().nullable(),
+  display: z.string().nullable(),
+  desktopSession: z.string().nullable(),
+  xdgSessionDesktop: z.string().nullable(),
+  gdmSession: z.string().nullable(),
+  sessionId: z.string().nullable(),
+  loginctlSessionType: z.string().nullable()
+})
+export type SessionDetectionSnapshot = z.infer<typeof SessionDetectionSnapshotSchema>
+
+export const SessionDetectionProbeSchema = z.object({
+  step: z.string().min(1),
+  signal: z.string().nullable(),
+  matched: z.boolean(),
+  note: z.string().min(1)
+})
+export type SessionDetectionProbe = z.infer<typeof SessionDetectionProbeSchema>
+
+export const SessionDiagnosticsSchema = z.object({
+  sessionInfo: RuntimeSessionInfoSchema,
+  snapshot: SessionDetectionSnapshotSchema,
+  probes: z.array(SessionDetectionProbeSchema)
+})
+export type SessionDiagnostics = z.infer<typeof SessionDiagnosticsSchema>
 
 export const SessionCheckResultSchema = z.object({
   previousSessionType: SessionTypeSchema,
@@ -243,6 +287,7 @@ export const IPC_CHANNELS = {
   },
   system: {
     getSessionInfo: 'system:get-session-info',
+    getSessionDiagnostics: 'system:get-session-diagnostics',
     refreshSessionInfo: 'system:refresh-session-info',
     statusUpdate: 'system:status-update',
     macroStatusChanged: 'system:macro-status-changed'
@@ -277,6 +322,7 @@ export interface KeybrixApi {
   }
   system: {
     getSessionInfo: () => Promise<RuntimeSessionInfo>
+    getSessionDiagnostics: () => Promise<SessionDiagnostics>
     refreshSessionInfo: () => Promise<SessionCheckResult>
     onStatusUpdate: (callback: (status: SystemStatus) => void) => () => void
     onMacroStatusChange: (callback: (id: string, newStatus: MacroStatus) => void) => () => void
