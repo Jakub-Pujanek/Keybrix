@@ -6,8 +6,6 @@ import {
   DashboardStatsSchema,
   IPC_CHANNELS,
   ManualRunReasonCodeSchema,
-  MacroStatusChangeEventSchema,
-  SystemStatusSchema,
   UpdateAppSettingsInputSchema,
   type ActivityLog,
   type SessionCheckResult,
@@ -32,6 +30,7 @@ const SESSION_DETECTION_SOURCES = new Set<SessionDetectionSource>([
   'GDMSESSION',
   'DISPLAY',
   'WAYLAND_DISPLAY',
+  'PROCESS_PLATFORM',
   'UNKNOWN'
 ])
 const SESSION_DETECTION_CONFIDENCE = new Set<SessionDetectionConfidence>(['HIGH', 'MEDIUM', 'LOW'])
@@ -500,8 +499,12 @@ const api: KeybrixApi = {
     },
     onStatusUpdate: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {
-        const parsed = SystemStatusSchema.parse(payload)
-        callback(parsed)
+        if (payload === 'OPTIMAL' || payload === 'DEGRADED') {
+          callback(payload)
+          return
+        }
+
+        console.warn('[preload] system.onStatusUpdate dropped malformed payload.', { payload })
       }
 
       ipcRenderer.on(IPC_CHANNELS.system.statusUpdate, listener)
@@ -511,8 +514,27 @@ const api: KeybrixApi = {
     },
     onMacroStatusChange: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {
-        const parsed = MacroStatusChangeEventSchema.parse(payload)
-        callback(parsed.id, parsed.newStatus)
+        if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+          console.warn('[preload] system.onMacroStatusChange dropped malformed payload.', {
+            payload
+          })
+          return
+        }
+
+        const entry = payload as { id?: unknown; newStatus?: unknown }
+        if (
+          typeof entry.id !== 'string' ||
+          entry.id.length === 0 ||
+          typeof entry.newStatus !== 'string' ||
+          !MACRO_STATUSES.has(entry.newStatus as Macro['status'])
+        ) {
+          console.warn('[preload] system.onMacroStatusChange dropped malformed payload.', {
+            payload
+          })
+          return
+        }
+
+        callback(entry.id, entry.newStatus as Macro['status'])
       }
 
       ipcRenderer.on(IPC_CHANNELS.system.macroStatusChanged, listener)
@@ -533,7 +555,12 @@ const api: KeybrixApi = {
         throw new Error('Invalid shortcut keys.')
       }
 
-      if (source !== 'topbar' && source !== 'start-block' && source !== 'press-key-block') {
+      if (
+        source !== 'topbar' &&
+        source !== 'start-block' &&
+        source !== 'press-key-block' &&
+        source !== 'execute-shortcut-block'
+      ) {
         throw new Error('Invalid shortcut source.')
       }
 

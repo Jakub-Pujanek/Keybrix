@@ -367,7 +367,7 @@ function EditorScreen(): React.JSX.Element {
   }, [deleteSelected])
 
   return (
-    <section data-testid="editor-screen" className="min-w-0 space-y-4">
+    <section data-testid="editor-screen" className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
       <EditorTopBar
         macroTitle={macroTitle}
         shortcut={shortcut}
@@ -391,12 +391,12 @@ function EditorScreen(): React.JSX.Element {
         }}
       />
 
-      <div className="flex min-w-0 flex-col gap-4 xl:flex-row">
-        <div ref={libraryPanelRef} className="relative z-20">
+      <div className="flex min-h-0 min-w-0 flex-1 gap-4 overflow-hidden">
+        <div ref={libraryPanelRef} className="relative z-20 min-h-0 shrink-0">
           <BlocksLibraryPanel onAddBlock={addNode} />
         </div>
 
-        <div className={`relative min-w-0 flex-1 ${isDraggingBlocks ? 'z-[999]' : 'z-0'}`}>
+        <div className={`relative min-h-0 min-w-0 flex-1 ${isDraggingBlocks ? 'z-999' : 'z-0'}`}>
           <CanvasGrid
             nodes={nodes}
             zoom={zoom}
@@ -414,8 +414,13 @@ function EditorScreen(): React.JSX.Element {
             recordingShortcutNodeId={isRecordingShortcut ? recordingNodeId : null}
             pressedPreview={pressedPreview}
             onStartShortcutRecording={(nodeId, nodeType) => {
-              if (nodeType === 'PRESS_KEY') {
+              if (nodeType === 'PRESS_KEY' || nodeType === 'HOLD_KEY') {
                 startShortcutRecording('press-key-block', nodeId)
+                return
+              }
+
+              if (nodeType === 'EXECUTE_SHORTCUT') {
+                startShortcutRecording('execute-shortcut-block', nodeId)
                 return
               }
 

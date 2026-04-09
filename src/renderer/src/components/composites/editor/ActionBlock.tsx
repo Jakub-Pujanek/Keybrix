@@ -19,8 +19,13 @@ type ActionBlockProps = {
 const colorByType: Record<EditorNode['type'], string> = {
   START: 'from-[var(--kb-node-start-from)] to-[var(--kb-node-start-to)]',
   PRESS_KEY: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
+  HOLD_KEY: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
+  EXECUTE_SHORTCUT: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
   WAIT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
   MOUSE_CLICK: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
+  AUTOCLICKER_TIMED: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
+  AUTOCLICKER_INFINITE: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
+  MOVE_MOUSE_DURATION: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
   TYPE_TEXT: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
   REPEAT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
   INFINITE_LOOP: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]'
@@ -47,8 +52,13 @@ function ActionBlock({
   const defaultLabelByType: Record<EditorNode['type'], string> = {
     START: tx('editor.library.blocks.start'),
     PRESS_KEY: tx('editor.library.blocks.pressKey'),
+    HOLD_KEY: tx('editor.library.blocks.holdKey'),
+    EXECUTE_SHORTCUT: tx('editor.library.blocks.executeShortcut'),
     WAIT: tx('editor.library.blocks.wait'),
     MOUSE_CLICK: tx('editor.library.blocks.mouseClick'),
+    AUTOCLICKER_TIMED: tx('editor.library.blocks.autoclickerTimed'),
+    AUTOCLICKER_INFINITE: tx('editor.library.blocks.autoclickerInfinite'),
+    MOVE_MOUSE_DURATION: tx('editor.library.blocks.moveMouseDuration'),
     TYPE_TEXT: tx('editor.library.blocks.typeText'),
     REPEAT: tx('editor.library.blocks.repeat'),
     INFINITE_LOOP: tx('editor.library.blocks.infiniteLoop')
@@ -57,11 +67,13 @@ function ActionBlock({
   const label = String(node.payload.label ?? defaultLabelByType[node.type])
   const shortcut = String(node.payload.shortcut ?? '')
   const keyToPress = String(node.payload.key ?? 'A')
+  const holdMs = numeric(node.payload.durationMs, 300)
   const textToType = String(node.payload.text ?? '')
   const waitMs = numeric(node.payload.durationMs, 300)
   const mouseX = numeric(node.payload.x, 500)
   const mouseY = numeric(node.payload.y, 300)
   const mouseButton = String(node.payload.button ?? 'LEFT')
+  const frequencyMs = numeric(node.payload.frequencyMs, 100)
   const repeatCount = numeric(node.payload.count, 2)
   const showTopNotch = node.type !== 'START'
 
@@ -85,9 +97,11 @@ function ActionBlock({
             <p className="text-[22px] font-semibold tracking-tight">{label}</p>
           </div>
 
-          {node.type === 'START' || node.type === 'PRESS_KEY' ? (
+          {node.type === 'START' || node.type === 'PRESS_KEY' || node.type === 'HOLD_KEY' || node.type === 'EXECUTE_SHORTCUT' ? (
             <ShortcutRecorderInput
-              value={node.type === 'START' ? shortcut : keyToPress}
+              value={
+                node.type === 'START' || node.type === 'EXECUTE_SHORTCUT' ? shortcut : keyToPress
+              }
               isRecording={isRecordingShortcut}
               pressedPreview={pressedPreview}
               onStart={() => onStartShortcutRecording(node.id, node.type)}
@@ -106,6 +120,40 @@ function ActionBlock({
               onChange={(event) => onUpdatePayload(node.id, { key: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-44 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              placeholder={tx('editor.placeholder.singleKey')}
+            />
+          </div>
+        ) : null}
+
+        {node.type === 'HOLD_KEY' ? (
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.holdMs')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={holdMs}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+              }
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-28 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <span className="text-xs font-semibold text-white/55">ms</span>
+          </div>
+        ) : null}
+
+        {node.type === 'EXECUTE_SHORTCUT' && !isRecordingShortcut ? (
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.shortcut')}
+            </label>
+            <input
+              value={shortcut}
+              onChange={(event) => onUpdatePayload(node.id, { shortcut: event.target.value })}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-48 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.keyCombo')}
             />
           </div>
@@ -141,6 +189,7 @@ function ActionBlock({
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-28 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
             />
+            <span className="text-xs font-semibold text-white/55">ms</span>
           </div>
         ) : null}
 
@@ -176,6 +225,117 @@ function ActionBlock({
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
               <option value="MIDDLE">{tx('editor.mouseButton.MIDDLE')}</option>
             </select>
+          </div>
+        ) : null}
+
+        {node.type === 'AUTOCLICKER_TIMED' ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.freqMs')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={frequencyMs}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { frequencyMs: Math.max(1, Number(event.target.value) || 1) })
+              }
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <span className="text-xs font-semibold text-white/55">ms</span>
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.durationMs')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={waitMs}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+              }
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <span className="text-xs font-semibold text-white/55">ms</span>
+            <select
+              value={mouseButton}
+              onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            >
+              <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
+              <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
+              <option value="MIDDLE">{tx('editor.mouseButton.MIDDLE')}</option>
+            </select>
+          </div>
+        ) : null}
+
+        {node.type === 'AUTOCLICKER_INFINITE' ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.freqMs')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={frequencyMs}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { frequencyMs: Math.max(1, Number(event.target.value) || 1) })
+              }
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <span className="text-xs font-semibold text-white/55">ms</span>
+            <select
+              value={mouseButton}
+              onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            >
+              <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
+              <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
+              <option value="MIDDLE">{tx('editor.mouseButton.MIDDLE')}</option>
+            </select>
+          </div>
+        ) : null}
+
+        {node.type === 'MOVE_MOUSE_DURATION' ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.x')}
+            </label>
+            <input
+              type="number"
+              value={mouseX}
+              onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.y')}
+            </label>
+            <input
+              type="number"
+              value={mouseY}
+              onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
+              {tx('editor.field.durationMs')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={waitMs}
+              onChange={(event) =>
+                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+              }
+              onPointerDown={(event) => event.stopPropagation()}
+              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+            />
+            <span className="text-xs font-semibold text-white/55">ms</span>
           </div>
         ) : null}
 

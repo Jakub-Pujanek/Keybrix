@@ -248,7 +248,7 @@ function CanvasGrid({
       onWheel={handleCanvasWheel}
       onDragOver={handleCanvasDragOver}
       onDrop={handleCanvasDrop}
-      className={`relative h-[calc(100vh-210px)] rounded border border-[var(--kb-border)] bg-[var(--kb-editor-canvas-bg)] ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`relative h-full min-h-0 w-full rounded border border-[var(--kb-border)] bg-[var(--kb-editor-canvas-bg)] ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       <div
         className="absolute left-0 top-0 origin-top-left"

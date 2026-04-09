@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_REPEAT_NESTING_DEPTH } from '../../shared/macro-runtime'
 
 const { pressKeyMock, releaseKeyMock, typeMock, setPositionMock, clickMock } = vi.hoisted(() => ({
@@ -26,7 +26,11 @@ vi.mock('@nut-tree-fork/nut-js', () => ({
   },
   Key: {
     LeftControl: 'LeftControl',
+    LeftShift: 'LeftShift',
+    LeftAlt: 'LeftAlt',
+    LeftSuper: 'LeftSuper',
     A: 'A',
+    C: 'C',
     Enter: 'Enter'
   },
   Point: class Point {
@@ -42,6 +46,14 @@ vi.mock('@nut-tree-fork/nut-js', () => ({
 import { macroRunner } from './index'
 
 describe('MacroRunner', () => {
+  beforeEach(() => {
+    pressKeyMock.mockClear()
+    releaseKeyMock.mockClear()
+    typeMock.mockClear()
+    setPositionMock.mockClear()
+    clickMock.mockClear()
+  })
+
   it('treats malformed blocksJson as no-op run and succeeds', async () => {
     const logs: string[] = []
 
@@ -84,7 +96,7 @@ describe('MacroRunner', () => {
         status: 'RUNNING',
         blocksJson: {
           commands: [
-            { type: 'PRESS_KEY', payload: { key: 'CTRL+A' } },
+            { type: 'PRESS_KEY', payload: { key: 'A' } },
             { type: 'TYPE_TEXT', payload: { text: 'hello' } },
             { type: 'MOUSE_CLICK', payload: { x: 100, y: 50, button: 'LEFT' } },
             {
@@ -246,5 +258,62 @@ describe('MacroRunner', () => {
     expect(result.success).toBe(true)
     expect(typeMock).toHaveBeenCalledWith('commands-first')
     expect(logs.some((entry) => entry.includes('compile errors'))).toBe(false)
+  })
+
+  it('executes HOLD_KEY, EXECUTE_SHORTCUT, AUTOCLICKER_TIMED and MOVE_MOUSE_DURATION commands', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-new-commands',
+        name: 'New Commands',
+        shortcut: 'CTRL+N',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            { type: 'HOLD_KEY', payload: { key: 'A', durationMs: 1 } },
+            { type: 'EXECUTE_SHORTCUT', payload: { shortcut: 'CTRL+ENTER' } },
+            { type: 'AUTOCLICKER_TIMED', payload: { button: 'LEFT', frequencyMs: 1, durationMs: 3 } },
+            { type: 'MOVE_MOUSE_DURATION', payload: { x: 20, y: 10, durationMs: 1 } }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(true)
+    expect(pressKeyMock).toHaveBeenCalled()
+    expect(releaseKeyMock).toHaveBeenCalled()
+    expect(clickMock.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(setPositionMock).toHaveBeenCalled()
+  })
+
+  it('stops AUTOCLICKER_INFINITE when global master is disabled', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-autoclicker-infinite',
+        name: 'Autoclicker Infinite',
+        shortcut: 'CTRL+I',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'AUTOCLICKER_INFINITE', payload: { button: 'LEFT', frequencyMs: 1 } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: false
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => false
+    })
+
+    expect(result.success).toBe(false)
   })
 })

@@ -1,6 +1,11 @@
 import type { EditorBlockType } from '../api'
+import { autoclickerInfiniteBlockDefinition } from './blocks/autoclicker-infinite.block'
+import { autoclickerTimedBlockDefinition } from './blocks/autoclicker-timed.block'
+import { executeShortcutBlockDefinition } from './blocks/execute-shortcut.block'
+import { holdKeyBlockDefinition } from './blocks/hold-key.block'
 import { infiniteLoopBlockDefinition } from './blocks/infinite-loop.block'
 import { mouseClickBlockDefinition } from './blocks/mouse-click.block'
+import { moveMouseDurationBlockDefinition } from './blocks/move-mouse-duration.block'
 import { pressKeyBlockDefinition } from './blocks/press-key.block'
 import { repeatBlockDefinition } from './blocks/repeat.block'
 import { startBlockDefinition } from './blocks/start.block'
@@ -11,8 +16,13 @@ import type { BlockDefinition } from './types'
 export const BLOCK_REGISTRY = [
   startBlockDefinition,
   pressKeyBlockDefinition,
+  holdKeyBlockDefinition,
+  executeShortcutBlockDefinition,
   typeTextBlockDefinition,
   mouseClickBlockDefinition,
+  autoclickerTimedBlockDefinition,
+  autoclickerInfiniteBlockDefinition,
+  moveMouseDurationBlockDefinition,
   waitBlockDefinition,
   repeatBlockDefinition,
   infiniteLoopBlockDefinition

@@ -59,8 +59,13 @@
       "blocks": {
         "start": "Start Block",
         "pressKey": "Press Key",
+        "holdKey": "Hold Key",
+        "executeShortcut": "Execute Shortcut",
         "typeText": "Type Text",
         "mouseClick": "Mouse Click",
+        "autoclickerTimed": "Autoclicker Timed",
+        "autoclickerInfinite": "Autoclicker Infinite",
+        "moveMouseDuration": "Move Mouse",
         "wait": "Wait (ms)",
         "repeat": "Repeat Loop",
         "infiniteLoop": "Infinite Loop"
@@ -78,13 +83,18 @@
     },
     "field": {
       "key": "Key",
+      "shortcut": "Shortcut",
       "text": "Text",
       "waitMs": "Wait ms",
+      "holdMs": "Hold ms",
+      "durationMs": "Duration ms",
+      "freqMs": "Frequency ms",
       "x": "X",
       "y": "Y",
       "count": "Count"
     },
     "placeholder": {
+      "singleKey": "e.g. A",
       "keyCombo": "e.g. CTRL + C",
       "typeText": "Enter text to type"
     },

@@ -79,13 +79,11 @@ const readSessionIdsFromList = (): string[] => {
   const parsed = lines
     .map((line) => line.split(/\s+/))
     .map((parts) => ({
-      id: parts[0] ?? null,
+      id: parts[0] ?? '',
       uid: parts[1] ?? null,
       state: parts[5] ?? null
     }))
-    .filter((entry): entry is { id: string; uid: string | null; state: string | null } =>
-      typeof entry.id === 'string' && entry.id.length > 0
-    )
+    .filter((entry) => entry.id.length > 0)
 
   const byUid = uid ? parsed.filter((entry) => entry.uid === uid) : parsed
   const candidates = byUid.length > 0 ? byUid : parsed
@@ -287,6 +285,24 @@ const resolveSessionFromSnapshot = (
       rawSession: 'wayland',
       detectionSource: 'WAYLAND_DISPLAY',
       detectionConfidence: 'LOW'
+    }
+  }
+
+  probes.push({
+    step: 'platformFallback',
+    signal: process.platform,
+    matched: process.platform === 'win32',
+    note:
+      process.platform === 'win32'
+        ? 'Detected Windows platform; treating runtime as X11-compatible for input injection.'
+        : 'No platform fallback applied.'
+  })
+  if (process.platform === 'win32') {
+    return {
+      sessionType: 'X11',
+      rawSession: 'windows',
+      detectionSource: 'PROCESS_PLATFORM',
+      detectionConfidence: 'MEDIUM'
     }
   }
 

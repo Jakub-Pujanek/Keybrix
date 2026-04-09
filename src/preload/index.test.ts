@@ -84,6 +84,30 @@ describe('preload api bridge', () => {
     })
   })
 
+  it('accepts PROCESS_PLATFORM detection source in session info payload', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+    invokeMock.mockResolvedValueOnce({
+      sessionType: 'X11',
+      rawSession: 'windows',
+      detectedAt: '2026-04-09T18:30:00.000Z',
+      isInputInjectionSupported: true,
+      detectionSource: 'PROCESS_PLATFORM',
+      detectionConfidence: 'MEDIUM'
+    })
+
+    await import('./index')
+    const result = await getApi().system.getSessionInfo()
+
+    expect(result).toEqual({
+      sessionType: 'X11',
+      rawSession: 'windows',
+      detectedAt: '2026-04-09T18:30:00.000Z',
+      isInputInjectionSupported: true,
+      detectionSource: 'PROCESS_PLATFORM',
+      detectionConfidence: 'MEDIUM'
+    })
+  })
+
   it('invokes system.getSessionDiagnostics channel and returns parsed payload', async () => {
     ;(process as { contextIsolated?: boolean }).contextIsolated = false
     invokeMock.mockResolvedValueOnce({

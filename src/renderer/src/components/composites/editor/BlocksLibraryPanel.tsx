@@ -23,8 +23,13 @@ type GroupName = BlockGroup
 type StringKey =
   | 'editor.library.blocks.start'
   | 'editor.library.blocks.pressKey'
+  | 'editor.library.blocks.holdKey'
+  | 'editor.library.blocks.executeShortcut'
   | 'editor.library.blocks.typeText'
   | 'editor.library.blocks.mouseClick'
+  | 'editor.library.blocks.autoclickerTimed'
+  | 'editor.library.blocks.autoclickerInfinite'
+  | 'editor.library.blocks.moveMouseDuration'
   | 'editor.library.blocks.wait'
   | 'editor.library.blocks.repeat'
   | 'editor.library.blocks.infiniteLoop'
@@ -91,7 +96,7 @@ function BlocksLibraryPanel({ onAddBlock }: BlocksLibraryPanelProps): React.JSX.
   }
 
   return (
-    <aside className="w-[245px] rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-4">
+    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-4">
       <div className="mb-5 flex items-center justify-between">
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
           {tx('editor.library.title')}
@@ -99,48 +104,50 @@ function BlocksLibraryPanel({ onAddBlock }: BlocksLibraryPanelProps): React.JSX.
         <Filter className="h-3 w-3 text-[var(--kb-text-muted)]" />
       </div>
 
-      <div className="space-y-6">
-        {groupOrder.map((group) => (
-          <section key={group}>
-            <h3 className="mb-3 text-[11px] font-bold tracking-[0.14em] uppercase">
-              <span className={groupAccentClass[group]}>{groupLabelMap[group]}</span>
-            </h3>
-            <div className="space-y-2">
-              {items
-                .filter((item) => item.group === group)
-                .map((item) => {
-                  const Icon = item.icon
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="space-y-6 pb-1">
+          {groupOrder.map((group) => (
+            <section key={group}>
+              <h3 className="mb-3 text-[11px] font-bold tracking-[0.14em] uppercase">
+                <span className={groupAccentClass[group]}>{groupLabelMap[group]}</span>
+              </h3>
+              <div className="space-y-2">
+                {items
+                  .filter((item) => item.group === group)
+                  .map((item) => {
+                    const Icon = item.icon
 
-                  return (
-                    <button
-                      key={`${group}-${item.labelKey}`}
-                      type="button"
-                      draggable
-                      onClick={() => {
-                        if (suppressClickRef.current) return
-                        onAddBlock(item.type)
-                      }}
-                      onDragStart={(event) => {
-                        suppressClickRef.current = true
-                        event.dataTransfer.setData('application/x-keybrix-block-type', item.type)
-                        event.dataTransfer.setData('text/plain', item.type)
-                        event.dataTransfer.effectAllowed = 'copy'
-                      }}
-                      onDragEnd={() => {
-                        setTimeout(() => {
-                          suppressClickRef.current = false
-                        }, 0)
-                      }}
-                      className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition ${itemClassByGroup[item.group]}`}
-                    >
-                      <Icon className={`h-4 w-4 ${iconClassByGroup[item.group]}`} />
-                      <span>{tx(item.labelKey)}</span>
-                    </button>
-                  )
-                })}
-            </div>
-          </section>
-        ))}
+                    return (
+                      <button
+                        key={`${group}-${item.labelKey}`}
+                        type="button"
+                        draggable
+                        onClick={() => {
+                          if (suppressClickRef.current) return
+                          onAddBlock(item.type)
+                        }}
+                        onDragStart={(event) => {
+                          suppressClickRef.current = true
+                          event.dataTransfer.setData('application/x-keybrix-block-type', item.type)
+                          event.dataTransfer.setData('text/plain', item.type)
+                          event.dataTransfer.effectAllowed = 'copy'
+                        }}
+                        onDragEnd={() => {
+                          setTimeout(() => {
+                            suppressClickRef.current = false
+                          }, 0)
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition ${itemClassByGroup[item.group]}`}
+                      >
+                        <Icon className={`h-4 w-4 ${iconClassByGroup[item.group]}`} />
+                        <span>{tx(item.labelKey)}</span>
+                      </button>
+                    )
+                  })}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
     </aside>
   )

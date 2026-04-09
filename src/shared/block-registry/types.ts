@@ -15,8 +15,13 @@ export type BlockIcon =
 export type BlockLabelKey =
   | 'editor.library.blocks.start'
   | 'editor.library.blocks.pressKey'
+  | 'editor.library.blocks.holdKey'
+  | 'editor.library.blocks.executeShortcut'
   | 'editor.library.blocks.typeText'
   | 'editor.library.blocks.mouseClick'
+  | 'editor.library.blocks.autoclickerTimed'
+  | 'editor.library.blocks.autoclickerInfinite'
+  | 'editor.library.blocks.moveMouseDuration'
   | 'editor.library.blocks.wait'
   | 'editor.library.blocks.repeat'
   | 'editor.library.blocks.infiniteLoop'

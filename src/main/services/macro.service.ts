@@ -33,16 +33,12 @@ export class MacroService {
 
   private async loadMacroRunner(): Promise<MacroRunner> {
     const originalEmitWarning = process.emitWarning
-    const patchedEmitWarning: typeof process.emitWarning = (
-      warning: string | Error,
-      type?: string,
-      code?: string,
-      ctor?: Function
-    ): void => {
+    const patchedEmitWarning = ((warning: string | Error, ...rest: unknown[]): void => {
       const warningMessage = typeof warning === 'string' ? warning : warning.message
+      const maybeCode = typeof rest[1] === 'string' ? rest[1] : undefined
       const warningCode = typeof warning === 'object' && warning && 'code' in warning
         ? String((warning as { code?: unknown }).code ?? '')
-        : (code ?? '')
+        : (maybeCode ?? '')
 
       if (
         warningCode === 'DEP0040' ||
@@ -51,8 +47,8 @@ export class MacroService {
         return
       }
 
-      originalEmitWarning.call(process, warning, type, code, ctor)
-    }
+      originalEmitWarning.call(process, warning, ...(rest as []))
+    }) as typeof process.emitWarning
 
     process.emitWarning = patchedEmitWarning
 
@@ -422,7 +418,7 @@ export class MacroService {
 
   reserveShortcut(input: {
     keys: string
-    source: 'topbar' | 'start-block' | 'press-key-block'
+    source: 'topbar' | 'start-block' | 'press-key-block' | 'execute-shortcut-block'
   }): boolean {
     const normalized = normalizeShortcut(input.keys)
     if (!shortcutManager.isShortcutFormatSupported(normalized)) {

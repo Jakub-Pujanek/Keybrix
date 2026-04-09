@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { execFileSyncMock } = vi.hoisted(() => ({
   execFileSyncMock: vi.fn()
@@ -13,6 +13,15 @@ import {
   detectRuntimeSessionInfo
 } from './session-detection.service'
 
+const originalPlatform = process.platform
+
+const setPlatform = (platform: NodeJS.Platform): void => {
+  Object.defineProperty(process, 'platform', {
+    value: platform,
+    configurable: true
+  })
+}
+
 const setEnv = (values: Record<string, string | undefined>): void => {
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) {
@@ -26,6 +35,7 @@ const setEnv = (values: Record<string, string | undefined>): void => {
 
 describe('session-detection.service', () => {
   beforeEach(() => {
+    setPlatform('linux')
     execFileSyncMock.mockReset()
     setEnv({
       XDG_SESSION_ID: '4',
@@ -36,6 +46,10 @@ describe('session-detection.service', () => {
       XDG_SESSION_DESKTOP: undefined,
       GDMSESSION: undefined
     })
+  })
+
+  afterEach(() => {
+    setPlatform(originalPlatform)
   })
 
   it('prefers loginctl result over conflicting env values', () => {
@@ -319,5 +333,31 @@ describe('session-detection.service', () => {
     expect(Array.isArray(diagnostics.probes)).toBe(true)
     expect(diagnostics.probes.length).toBeGreaterThan(0)
     expect(diagnostics.probes.some((probe) => probe.step === 'loginctlSessionType')).toBe(true)
+  })
+
+  it('treats Windows platform as X11-compatible when Linux signals are unavailable', () => {
+    setPlatform('win32')
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error('loginctl not available on win32')
+    })
+
+    setEnv({
+      XDG_SESSION_ID: undefined,
+      XDG_SESSION_TYPE: undefined,
+      WAYLAND_DISPLAY: undefined,
+      DISPLAY: undefined,
+      DESKTOP_SESSION: undefined,
+      XDG_SESSION_DESKTOP: undefined,
+      GDMSESSION: undefined
+    })
+
+    const diagnostics = detectRuntimeSessionDiagnostics()
+
+    expect(diagnostics.sessionInfo.sessionType).toBe('X11')
+    expect(diagnostics.sessionInfo.isInputInjectionSupported).toBe(true)
+    expect(diagnostics.sessionInfo.detectionSource).toBe('PROCESS_PLATFORM')
+    expect(diagnostics.probes.some((probe) => probe.step === 'platformFallback' && probe.matched)).toBe(
+      true
+    )
   })
 })

@@ -10,6 +10,7 @@ import {
 import { compileNodesToRuntimeCommands } from '../../../shared/macro-runtime'
 
 type RecordingSource = 'topbar' | 'start-block' | 'press-key-block'
+  | 'execute-shortcut-block'
 
 type EditorState = {
   nodes: EditorNode[]
@@ -44,8 +45,13 @@ type EditorState = {
 const blockTitleByType: Record<EditorBlockType, string> = {
   START: 'Start',
   PRESS_KEY: 'Press Key',
+  HOLD_KEY: 'Hold Key',
+  EXECUTE_SHORTCUT: 'Execute Shortcut',
   WAIT: 'Wait',
   MOUSE_CLICK: 'Mouse Click',
+  AUTOCLICKER_TIMED: 'Autoclicker Timed',
+  AUTOCLICKER_INFINITE: 'Autoclicker Infinite',
+  MOVE_MOUSE_DURATION: 'Move Mouse',
   TYPE_TEXT: 'Type Text',
   REPEAT: 'Repeat',
   INFINITE_LOOP: 'Infinite Loop'
@@ -71,7 +77,7 @@ const defaultNodes: EditorNode[] = [
     nextId: 'node-wait',
     payload: {
       label: 'Press Key',
-      key: 'CTRL + C'
+      key: 'C'
     }
   },
   {
@@ -157,6 +163,13 @@ const formatShortcut = (codes: string[]): string => {
   return normalized.join(' + ')
 }
 
+const formatSingleKey = (codes: string[]): string => {
+  const nonModifier = codes.filter((code) => !isModifierCode(code))
+  const preferred = nonModifier.length > 0 ? nonModifier[nonModifier.length - 1] : codes[codes.length - 1]
+
+  return preferred ? normalizeKey(preferred) : ''
+}
+
 const firstMacro = async (): Promise<Macro | null> => {
   const all = await window.api.macros.getAll()
   return all.length > 0 ? all[0] : null
@@ -188,7 +201,21 @@ const normalizeLoadedNodes = (nodes: EditorNode[], macroShortcut: string): Edito
         ...node,
         payload: {
           ...node.payload,
-          key: node.payload.value
+          key: String(node.payload.value)
+            .split('+')
+            .map((chunk) => chunk.trim())
+            .filter((chunk) => chunk.length > 0)
+            .at(-1)
+        }
+      }
+    }
+
+    if (node.type === 'EXECUTE_SHORTCUT' && node.payload.value && !node.payload.shortcut) {
+      return {
+        ...node,
+        payload: {
+          ...node.payload,
+          shortcut: node.payload.value
         }
       }
     }
@@ -304,6 +331,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (type === 'PRESS_KEY') {
       nextNode.payload.key = 'A'
     }
+    if (type === 'HOLD_KEY') {
+      nextNode.payload.key = 'A'
+      nextNode.payload.durationMs = 300
+    }
+    if (type === 'EXECUTE_SHORTCUT') {
+      nextNode.payload.shortcut = 'CTRL + C'
+    }
     if (type === 'TYPE_TEXT') {
       nextNode.payload.text = ''
     }
@@ -314,6 +348,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextNode.payload.x = 500
       nextNode.payload.y = 300
       nextNode.payload.button = 'LEFT'
+    }
+    if (type === 'AUTOCLICKER_TIMED') {
+      nextNode.payload.button = 'LEFT'
+      nextNode.payload.frequencyMs = 100
+      nextNode.payload.durationMs = 1000
+    }
+    if (type === 'AUTOCLICKER_INFINITE') {
+      nextNode.payload.button = 'LEFT'
+      nextNode.payload.frequencyMs = 100
+    }
+    if (type === 'MOVE_MOUSE_DURATION') {
+      nextNode.payload.x = 500
+      nextNode.payload.y = 300
+      nextNode.payload.durationMs = 250
     }
     if (type === 'REPEAT') {
       nextNode.payload.count = 2
@@ -444,6 +492,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (nextHeld.length !== 0 || comboKeys.length === 0) return
 
     const formatted = formatShortcut(comboKeys)
+    const singleKey = formatSingleKey(comboKeys)
 
     set((state) => {
       if (recordingSource === 'press-key-block' && recordingNodeId) {
@@ -453,12 +502,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           recordingNodeId: null,
           comboKeys: [],
           nodes: state.nodes.map((node) =>
-            node.id === recordingNodeId && node.type === 'PRESS_KEY'
+            node.id === recordingNodeId && (node.type === 'PRESS_KEY' || node.type === 'HOLD_KEY')
               ? {
                   ...node,
                   payload: {
                     ...node.payload,
-                    key: formatted
+                    key: singleKey || formatted
+                  }
+                }
+              : node
+          )
+        }
+      }
+      if (recordingSource === 'execute-shortcut-block' && recordingNodeId) {
+        return {
+          isRecordingShortcut: false,
+          recordingSource: null,
+          recordingNodeId: null,
+          comboKeys: [],
+          nodes: state.nodes.map((node) =>
+            node.id === recordingNodeId && node.type === 'EXECUTE_SHORTCUT'
+              ? {
+                  ...node,
+                  payload: {
+                    ...node.payload,
+                    shortcut: formatted
                   }
                 }
               : node
@@ -488,7 +556,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     if (recordingSource) {
       await window.api.keyboard.recordShortcut({
-        keys: formatted,
+        keys: recordingSource === 'press-key-block' ? singleKey || formatted : formatted,
         source: recordingSource
       })
     }
@@ -523,7 +591,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     })
 
-    set({ activeMacroId: saved.id })
+    set({
+      activeMacroId: saved.id,
+      macroTitle: saved.name,
+      shortcut: saved.shortcut.replace(/\+/g, ' + ')
+    })
     return true
   },
 

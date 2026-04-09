@@ -90,6 +90,20 @@ const mockApi: KeybrixApi = {
   },
   system: {
     getSessionInfo: async () => buildSessionInfo(initialSessionType),
+    getSessionDiagnostics: async () => ({
+      sessionInfo: buildSessionInfo(initialSessionType),
+      snapshot: {
+        xdgSessionType: null,
+        waylandDisplay: null,
+        display: null,
+        desktopSession: null,
+        xdgSessionDesktop: null,
+        gdmSession: null,
+        sessionId: null,
+        loginctlSessionType: null
+      },
+      probes: []
+    }),
     refreshSessionInfo: async () => {
       refreshCallCount += 1
       if (nextRefreshSessionFactory) {

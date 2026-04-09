@@ -59,8 +59,13 @@
       "blocks": {
         "start": "Blok Startowy",
         "pressKey": "Wciśnij Klawisz",
+        "holdKey": "Przytrzymaj Klawisz",
+        "executeShortcut": "Wykonaj Skrót",
         "typeText": "Wpisz Tekst",
         "mouseClick": "Kliknięcie Myszy",
+        "autoclickerTimed": "Autokliker Czasowy",
+        "autoclickerInfinite": "Autokliker Nieskończony",
+        "moveMouseDuration": "Ruch Myszy",
         "wait": "Czekaj (ms)",
         "repeat": "Pętla Powtórzeń",
         "infiniteLoop": "Pętla Nieskończona"
@@ -78,13 +83,18 @@
     },
     "field": {
       "key": "Klawisz",
+      "shortcut": "Skrót",
       "text": "Tekst",
       "waitMs": "Czas oczekiwania",
+      "holdMs": "Czas przytrzymania",
+      "durationMs": "Czas trwania",
+      "freqMs": "Częstotliwość",
       "x": "X",
       "y": "Y",
       "count": "Liczba"
     },
     "placeholder": {
+      "singleKey": "np. A",
       "keyCombo": "np. CTRL + C",
       "typeText": "Wpisz tekst do wpisania"
     },

@@ -45,12 +45,52 @@ const asRecord = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>
 }
 
+const normalizeSingleToken = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+
+  const normalized = value
+    .split('+')
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.length > 0)
+
+  if (normalized.length === 0) return null
+
+  return normalized[normalized.length - 1] ?? null
+}
+
 const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
   const payload = asRecord(node.payload)
 
   if (node.type === 'PRESS_KEY') {
     const keyCandidate = payload['key'] ?? payload['keys'] ?? payload['value']
-    return typeof keyCandidate === 'string' ? { key: keyCandidate } : {}
+    const normalized = normalizeSingleToken(keyCandidate)
+    return normalized ? { key: normalized } : {}
+  }
+
+  if (node.type === 'HOLD_KEY') {
+    const keyCandidate = payload['key'] ?? payload['keys'] ?? payload['value']
+    const durationMs = payload['durationMs']
+    const next: Record<string, unknown> = {}
+
+    const normalizedKey = normalizeSingleToken(keyCandidate)
+    if (normalizedKey) {
+      next['key'] = normalizedKey
+    }
+
+    if (typeof durationMs === 'number') {
+      next['durationMs'] = Math.max(1, Math.round(durationMs))
+    } else {
+      next['durationMs'] = 300
+    }
+
+    return next
+  }
+
+  if (node.type === 'EXECUTE_SHORTCUT') {
+    const shortcutCandidate = payload['shortcut'] ?? payload['key'] ?? payload['keys'] ?? payload['value']
+    return typeof shortcutCandidate === 'string' && shortcutCandidate.trim().length > 0
+      ? { shortcut: shortcutCandidate }
+      : {}
   }
 
   if (node.type === 'TYPE_TEXT') {
@@ -74,6 +114,53 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
     if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
       next['button'] = button
     }
+    return next
+  }
+
+  if (node.type === 'AUTOCLICKER_TIMED') {
+    const button = payload['button']
+    const frequencyMs = payload['frequencyMs']
+    const durationMs = payload['durationMs']
+
+    const next: Record<string, unknown> = {
+      frequencyMs: typeof frequencyMs === 'number' ? Math.max(1, Math.round(frequencyMs)) : 100,
+      durationMs: typeof durationMs === 'number' ? Math.max(1, Math.round(durationMs)) : 1000
+    }
+
+    if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
+      next['button'] = button
+    }
+
+    return next
+  }
+
+  if (node.type === 'AUTOCLICKER_INFINITE') {
+    const button = payload['button']
+    const frequencyMs = payload['frequencyMs']
+
+    const next: Record<string, unknown> = {
+      frequencyMs: typeof frequencyMs === 'number' ? Math.max(1, Math.round(frequencyMs)) : 100
+    }
+
+    if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
+      next['button'] = button
+    }
+
+    return next
+  }
+
+  if (node.type === 'MOVE_MOUSE_DURATION') {
+    const x = payload['x']
+    const y = payload['y']
+    const durationMs = payload['durationMs']
+
+    const next: Record<string, unknown> = {
+      durationMs: typeof durationMs === 'number' ? Math.max(1, Math.round(durationMs)) : 250
+    }
+
+    if (typeof x === 'number') next['x'] = x
+    if (typeof y === 'number') next['y'] = y
+
     return next
   }
 

@@ -27,6 +27,7 @@ export const SessionDetectionSourceSchema = z.enum([
   'GDMSESSION',
   'DISPLAY',
   'WAYLAND_DISPLAY',
+  'PROCESS_PLATFORM',
   'UNKNOWN'
 ])
 export type SessionDetectionSource = z.infer<typeof SessionDetectionSourceSchema>
@@ -102,8 +103,13 @@ export type MacroStatusChangeEvent = z.infer<typeof MacroStatusChangeEventSchema
 export const EditorBlockTypeSchema = z.enum([
   'START',
   'PRESS_KEY',
+  'HOLD_KEY',
+  'EXECUTE_SHORTCUT',
   'WAIT',
   'MOUSE_CLICK',
+  'AUTOCLICKER_TIMED',
+  'AUTOCLICKER_INFINITE',
+  'MOVE_MOUSE_DURATION',
   'TYPE_TEXT',
   'REPEAT',
   'INFINITE_LOOP'
@@ -141,7 +147,7 @@ export type RuntimeMacroDocument = z.infer<typeof RuntimeMacroDocumentSchema>
 
 export const RecordShortcutInputSchema = z.object({
   keys: z.string().min(1),
-  source: z.enum(['topbar', 'start-block', 'press-key-block'])
+  source: z.enum(['topbar', 'start-block', 'press-key-block', 'execute-shortcut-block'])
 })
 export type RecordShortcutInput = z.infer<typeof RecordShortcutInputSchema>
 
