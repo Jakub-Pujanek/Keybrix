@@ -105,7 +105,7 @@ export class MacroService {
         macroId: macro.id,
         shortcut: macro.shortcut,
         onTrigger: () => {
-          void this.run(macro.id)
+          void this.triggerByShortcut(macro.id)
         }
       })
 
@@ -204,7 +204,7 @@ export class MacroService {
             macroId: macro.id,
             shortcut: macro.shortcut,
             onTrigger: () => {
-              void this.run(macro.id)
+              void this.triggerByShortcut(macro.id)
             }
           })
 
@@ -246,7 +246,7 @@ export class MacroService {
     shortcutManager.unregisterAll()
 
     for (const macro of this.getAll()) {
-      const next = macroRepository.updateRuntimeState(macro.id, 'IDLE', false)
+      const next = macroRepository.updateRuntimeState(macro.id, 'IDLE')
       if (!next) continue
       this.emitStatus({ id: next.id, newStatus: next.status })
     }
@@ -260,7 +260,7 @@ export class MacroService {
         macroId: macro.id,
         shortcut: macro.shortcut,
         onTrigger: () => {
-          void this.run(macro.id)
+          void this.triggerByShortcut(macro.id)
         }
       })
 
@@ -331,7 +331,7 @@ export class MacroService {
         return finalize({ runId, success: false, reasonCode: 'GLOBAL_MASTER_OFF' })
       }
 
-      const running = macroRepository.updateRuntimeState(id, 'RUNNING', true)
+      const running = macroRepository.updateRuntimeState(id, 'RUNNING')
       if (!running) {
         logsService.append({
           level: 'ERR',
@@ -376,8 +376,7 @@ export class MacroService {
         : { runId, success: result.success, reasonCode: normalizedReasonCode }
 
       const finalStatus = effectiveResult.success ? 'ACTIVE' : 'IDLE'
-      const finalActive = effectiveResult.success
-      const finished = macroRepository.updateRuntimeState(id, finalStatus, finalActive)
+      const finished = macroRepository.updateRuntimeState(id, finalStatus)
 
       if (finished) {
         this.emitStatus({ id: finished.id, newStatus: finished.status })
@@ -416,6 +415,25 @@ export class MacroService {
 
       return finalize({ runId, success: false, reasonCode: 'RUNNER_FAILED' })
     }
+  }
+
+  async triggerByShortcut(id: string): Promise<MacroServiceRunResult> {
+    if (this.activeRuns.has(id)) {
+      const runId = globalThis.crypto.randomUUID()
+      this.cancelledRuns.add(id)
+      logsService.append({
+        level: 'INFO',
+        runId,
+        message: `Shortcut trigger requested stop for macro '${id}'.`
+      })
+      return { runId, success: false, reasonCode: 'ABORTED' }
+    }
+
+    logsService.append({
+      level: 'RUN',
+      message: `Shortcut trigger requested start for macro '${id}'.`
+    })
+    return this.run(id)
   }
 
   reserveShortcut(input: {

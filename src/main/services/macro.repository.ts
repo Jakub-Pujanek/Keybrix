@@ -52,15 +52,14 @@ export class MacroRepository {
     return updated !== null
   }
 
-  updateRuntimeState(id: string, status: Macro['status'], isActive: boolean): Macro | null {
+  updateRuntimeState(id: string, status: Macro['status']): Macro | null {
     const current = macroFilesStore.readById(id)
     if (!current) return null
 
     return (
       macroFilesStore.update(id, {
         ...current.macro,
-        status,
-        isActive
+        status
       })?.macro ?? null
     )
   }

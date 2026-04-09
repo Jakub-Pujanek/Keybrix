@@ -145,6 +145,21 @@ describe('MacroService', () => {
     expect(macroService.getById(saved.id)?.status).toBe('ACTIVE')
   })
 
+  it('starts macro when shortcut trigger is pressed while idle', async () => {
+    const { macroService } = await import('./macro.service')
+
+    const saved = macroService.save({
+      name: 'Shortcut Start',
+      shortcut: 'CTRL+SHIFT+Y',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    const result = await macroService.triggerByShortcut(saved.id)
+
+    expect(result.success).toBe(true)
+    expect(macroService.getById(saved.id)?.status).toBe('ACTIVE')
+  })
+
   it('passes commands-first payload to runner when nodes are invalid', async () => {
     const { macroService } = await import('./macro.service')
     const { macroRunner } = await import('../macro-runner')
@@ -205,6 +220,31 @@ describe('MacroService', () => {
     expect(macroService.getById(saved.id)?.status).toBe('IDLE')
   })
 
+  it('keeps shortcut arm state enabled when run fails', async () => {
+    const { macroService } = await import('./macro.service')
+    const { macroRunner } = await import('../macro-runner')
+
+    const saved = macroService.save({
+      name: 'Failed Run Keeps Arm',
+      shortcut: 'CTRL+SHIFT+K',
+      isActive: true,
+      status: 'ACTIVE',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    vi.mocked(macroRunner.runMacro).mockResolvedValueOnce({
+      success: false,
+      reasonCode: 'RUNNER_FAILED'
+    })
+
+    const result = await macroService.run(saved.id)
+    const updated = macroService.getById(saved.id)
+
+    expect(result.success).toBe(false)
+    expect(updated?.status).toBe('IDLE')
+    expect(updated?.isActive).toBe(true)
+  })
+
   it('cancels active run when macro is deleted during execution', async () => {
     const { macroService } = await import('./macro.service')
     const { macroRunner } = await import('../macro-runner')
@@ -229,6 +269,33 @@ describe('MacroService', () => {
     expect(runResult.reasonCode).toBe('ABORTED')
     expect(runResult.runId).toBeTruthy()
     expect(macroService.getById(saved.id)).toBeNull()
+  })
+
+  it('toggles running macro off when shortcut is triggered again', async () => {
+    const { macroService } = await import('./macro.service')
+    const { macroRunner } = await import('../macro-runner')
+    const deferred = createDeferred<{ success: boolean; reasonCode: 'SUCCESS' }>()
+
+    vi.mocked(macroRunner.runMacro).mockReturnValueOnce(deferred.promise)
+
+    const saved = macroService.save({
+      name: 'Shortcut Toggle Run',
+      shortcut: 'CTRL+SHIFT+T',
+      isActive: true,
+      status: 'ACTIVE',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    const firstTriggerPromise = macroService.triggerByShortcut(saved.id)
+    const secondTriggerResult = await macroService.triggerByShortcut(saved.id)
+
+    deferred.resolve({ success: true, reasonCode: 'SUCCESS' })
+    const firstTriggerResult = await firstTriggerPromise
+
+    expect(secondTriggerResult.success).toBe(false)
+    expect(secondTriggerResult.reasonCode).toBe('ABORTED')
+    expect(firstTriggerResult.success).toBe(false)
+    expect(firstTriggerResult.reasonCode).toBe('ABORTED')
   })
 
   it('saves macro as disabled when global shortcut registration fails', async () => {
