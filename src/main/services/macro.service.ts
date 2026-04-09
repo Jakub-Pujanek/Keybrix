@@ -36,9 +36,10 @@ export class MacroService {
     const patchedEmitWarning = ((warning: string | Error, ...rest: unknown[]): void => {
       const warningMessage = typeof warning === 'string' ? warning : warning.message
       const maybeCode = typeof rest[1] === 'string' ? rest[1] : undefined
-      const warningCode = typeof warning === 'object' && warning && 'code' in warning
-        ? String((warning as { code?: unknown }).code ?? '')
-        : (maybeCode ?? '')
+      const warningCode =
+        typeof warning === 'object' && warning && 'code' in warning
+          ? String((warning as { code?: unknown }).code ?? '')
+          : (maybeCode ?? '')
 
       if (
         warningCode === 'DEP0040' ||
@@ -367,7 +368,8 @@ export class MacroService {
         this.cancelledRuns.delete(id)
       }
 
-      const normalizedReasonCode = result.reasonCode ?? (result.success ? 'SUCCESS' : 'RUNNER_FAILED')
+      const normalizedReasonCode =
+        result.reasonCode ?? (result.success ? 'SUCCESS' : 'RUNNER_FAILED')
 
       const effectiveResult: MacroServiceRunResult = cancelled
         ? { runId, success: false, reasonCode: 'ABORTED' }

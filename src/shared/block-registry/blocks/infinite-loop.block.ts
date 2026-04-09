@@ -1,9 +1,12 @@
 import { z } from 'zod'
+import { RuntimeCommandSchema } from '../../api'
+import { MAX_REPEAT_NESTED_COMMANDS } from '../../macro-runtime'
 import type { BlockDefinition } from '../types'
 
 const InfiniteLoopPayloadSchema = z
   .object({
-    label: z.string().optional()
+    label: z.string().optional(),
+    commands: z.array(RuntimeCommandSchema).max(MAX_REPEAT_NESTED_COMMANDS).optional()
   })
   .passthrough()
 

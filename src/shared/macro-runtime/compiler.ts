@@ -87,7 +87,8 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
   }
 
   if (node.type === 'EXECUTE_SHORTCUT') {
-    const shortcutCandidate = payload['shortcut'] ?? payload['key'] ?? payload['keys'] ?? payload['value']
+    const shortcutCandidate =
+      payload['shortcut'] ?? payload['key'] ?? payload['keys'] ?? payload['value']
     return typeof shortcutCandidate === 'string' && shortcutCandidate.trim().length > 0
       ? { shortcut: shortcutCandidate }
       : {}
@@ -185,12 +186,36 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
     }
   }
 
+  if (node.type === 'INFINITE_LOOP') {
+    const rawCommands = payload['commands']
+
+    const commands = Array.isArray(rawCommands)
+      ? rawCommands
+          .map((item) => RuntimeCommandSchema.safeParse(item))
+          .filter((item): item is { success: true; data: RuntimeCommand } => item.success)
+          .map((item) => item.data)
+          .slice(0, MAX_REPEAT_NESTED_COMMANDS)
+      : []
+
+    return {
+      commands
+    }
+  }
+
   if (node.type === 'START') {
     const shortcut = payload['shortcut']
     return typeof shortcut === 'string' ? { shortcut } : {}
   }
 
   return {}
+}
+
+const toLoopFallbackCommands = (commands: RuntimeCommand[], index: number): RuntimeCommand[] => {
+  return commands
+    .slice(0, index)
+    .filter((command) => command.type !== 'START')
+    .filter((command) => command.type !== 'REPEAT' && command.type !== 'INFINITE_LOOP')
+    .slice(0, MAX_REPEAT_NESTED_COMMANDS)
 }
 
 const orderNodesByConnections = (
@@ -292,14 +317,35 @@ export const compileNodesToRuntime = (nodes: unknown): RuntimeCompileResult => {
     .map((item) => item.data)
 
   const { orderedNodes, diagnostics } = orderNodesByConnections(parsedNodes)
+  const commands = orderedNodes.map((node) =>
+    RuntimeCommandSchema.parse({
+      type: node.type,
+      payload: normalizeCommandPayload(node)
+    })
+  )
+
+  const commandsWithLoopFallback = commands.map((command, index) => {
+    if (command.type !== 'REPEAT' && command.type !== 'INFINITE_LOOP') {
+      return command
+    }
+
+    const payload = asRecord(command.payload)
+    const hasNestedCommands = Array.isArray(payload['commands']) && payload['commands'].length > 0
+    if (hasNestedCommands) {
+      return command
+    }
+
+    return RuntimeCommandSchema.parse({
+      type: command.type,
+      payload: {
+        ...payload,
+        commands: toLoopFallbackCommands(commands, index)
+      }
+    })
+  })
 
   return {
-    commands: orderedNodes.map((node) =>
-      RuntimeCommandSchema.parse({
-        type: node.type,
-        payload: normalizeCommandPayload(node)
-      })
-    ),
+    commands: commandsWithLoopFallback,
     diagnostics
   }
 }

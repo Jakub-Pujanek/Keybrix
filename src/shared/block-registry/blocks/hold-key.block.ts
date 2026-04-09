@@ -4,7 +4,12 @@ import type { BlockDefinition } from '../types'
 const HoldKeyPayloadSchema = z
   .object({
     label: z.string().optional(),
-    key: z.string().trim().min(1).refine((value) => !value.includes('+')).optional(),
+    key: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^+]+$/)
+      .optional(),
     durationMs: z.number().int().min(1).optional()
   })
   .passthrough()

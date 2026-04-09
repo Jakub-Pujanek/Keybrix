@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { RuntimeCommand } from '../api'
 import { MAX_REPEAT_NESTED_COMMANDS } from './constants'
 import {
   RuntimeCompileDiagnosticCode,
@@ -48,6 +49,23 @@ describe('compileNodesToRuntimeCommands', () => {
     expect(commands).toHaveLength(1)
     expect(commands[0]?.type).toBe('REPEAT')
     expect(commands[0]?.payload).toEqual({ count: 3, commands: [] })
+  })
+
+  it('normalizes INFINITE_LOOP payload to include commands array', () => {
+    const commands = compileNodesToRuntimeCommands([
+      {
+        id: 'l1',
+        type: 'INFINITE_LOOP',
+        x: 0,
+        y: 0,
+        nextId: null,
+        payload: {}
+      }
+    ])
+
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.type).toBe('INFINITE_LOOP')
+    expect(commands[0]?.payload).toEqual({ commands: [] })
   })
 
   it('reports error when START block is missing', () => {
@@ -101,6 +119,60 @@ describe('compileNodesToRuntimeCommands', () => {
     expect(commands[1]?.type).toBe('REPEAT')
     const payload = commands[1]?.payload as { commands?: unknown[] }
     expect(payload.commands).toHaveLength(MAX_REPEAT_NESTED_COMMANDS)
+  })
+
+  it('uses previous graph commands as loop fallback when REPEAT and INFINITE_LOOP commands are missing', () => {
+    const commands = compileNodesToRuntimeCommands([
+      {
+        id: 's1',
+        type: 'START',
+        x: 0,
+        y: 0,
+        nextId: 't1',
+        payload: {}
+      },
+      {
+        id: 't1',
+        type: 'TYPE_TEXT',
+        x: 0,
+        y: 0,
+        nextId: 'w1',
+        payload: { text: 'loop-me' }
+      },
+      {
+        id: 'w1',
+        type: 'WAIT',
+        x: 0,
+        y: 0,
+        nextId: 'r1',
+        payload: { durationMs: 50 }
+      },
+      {
+        id: 'r1',
+        type: 'REPEAT',
+        x: 0,
+        y: 0,
+        nextId: 'l1',
+        payload: { count: 2 }
+      },
+      {
+        id: 'l1',
+        type: 'INFINITE_LOOP',
+        x: 0,
+        y: 0,
+        nextId: null,
+        payload: {}
+      }
+    ])
+
+    const repeatPayload = commands[3]?.payload as { commands?: RuntimeCommand[] }
+    const infinitePayload = commands[4]?.payload as { commands?: RuntimeCommand[] }
+
+    expect(repeatPayload.commands?.map((command) => command.type)).toEqual(['TYPE_TEXT', 'WAIT'])
+    expect(infinitePayload.commands?.map((command) => command.type)).toEqual([
+      'TYPE_TEXT',
+      'WAIT'
+    ])
   })
 
   it('normalizes payloads for new block types and single-key press', () => {
@@ -165,7 +237,10 @@ describe('compileNodesToRuntimeCommands', () => {
 
     expect(commands[1]).toEqual({ type: 'PRESS_KEY', payload: { key: 'C' } })
     expect(commands[2]).toEqual({ type: 'HOLD_KEY', payload: { key: 'X', durationMs: 1 } })
-    expect(commands[3]).toEqual({ type: 'EXECUTE_SHORTCUT', payload: { shortcut: 'CTRL + ALT + T' } })
+    expect(commands[3]).toEqual({
+      type: 'EXECUTE_SHORTCUT',
+      payload: { shortcut: 'CTRL + ALT + T' }
+    })
     expect(commands[4]).toEqual({
       type: 'AUTOCLICKER_TIMED',
       payload: { button: 'RIGHT', frequencyMs: 1, durationMs: 1 }

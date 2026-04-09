@@ -99,7 +99,9 @@ const readSessionIdsFromList = (): string[] => {
 const readLoginctlSessionType = (sessionId: string | null): string | null => {
   if (process.platform !== 'linux') return null
 
-  const candidates = ['self', sessionId].filter((candidate): candidate is string => Boolean(candidate))
+  const candidates = ['self', sessionId].filter((candidate): candidate is string =>
+    Boolean(candidate)
+  )
 
   for (const candidate of candidates) {
     const parsed = readSessionTypeById(candidate)

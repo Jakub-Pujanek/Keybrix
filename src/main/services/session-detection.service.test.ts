@@ -356,8 +356,8 @@ describe('session-detection.service', () => {
     expect(diagnostics.sessionInfo.sessionType).toBe('X11')
     expect(diagnostics.sessionInfo.isInputInjectionSupported).toBe(true)
     expect(diagnostics.sessionInfo.detectionSource).toBe('PROCESS_PLATFORM')
-    expect(diagnostics.probes.some((probe) => probe.step === 'platformFallback' && probe.matched)).toBe(
-      true
-    )
+    expect(
+      diagnostics.probes.some((probe) => probe.step === 'platformFallback' && probe.matched)
+    ).toBe(true)
   })
 })

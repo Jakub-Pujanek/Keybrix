@@ -9,8 +9,7 @@ import {
 } from '../../../shared/api'
 import { compileNodesToRuntimeCommands } from '../../../shared/macro-runtime'
 
-type RecordingSource = 'topbar' | 'start-block' | 'press-key-block'
-  | 'execute-shortcut-block'
+type RecordingSource = 'topbar' | 'start-block' | 'press-key-block' | 'execute-shortcut-block'
 
 type EditorState = {
   nodes: EditorNode[]
@@ -165,7 +164,8 @@ const formatShortcut = (codes: string[]): string => {
 
 const formatSingleKey = (codes: string[]): string => {
   const nonModifier = codes.filter((code) => !isModifierCode(code))
-  const preferred = nonModifier.length > 0 ? nonModifier[nonModifier.length - 1] : codes[codes.length - 1]
+  const preferred =
+    nonModifier.length > 0 ? nonModifier[nonModifier.length - 1] : codes[codes.length - 1]
 
   return preferred ? normalizeKey(preferred) : ''
 }

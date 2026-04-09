@@ -1,11 +1,19 @@
-import { RuntimeCommandSchema, type Macro, type RuntimeCommand, type SessionType } from '../../shared/api'
+import {
+  RuntimeCommandSchema,
+  type Macro,
+  type RuntimeCommand,
+  type SessionType
+} from '../../shared/api'
 import {
   MAX_REPEAT_NESTING_DEPTH,
   RuntimeCompileDiagnosticSeverity,
   compileNodesToRuntime
 } from '../../shared/macro-runtime'
 import { executeRuntimeCommand } from './block-runtime.registry'
-import { detectRuntimeSessionInfo, readSessionEnvSnapshot } from '../services/session-detection.service'
+import {
+  detectRuntimeSessionInfo,
+  readSessionEnvSnapshot
+} from '../services/session-detection.service'
 
 type RuntimeSettings = {
   globalMaster: boolean
@@ -117,7 +125,15 @@ export class MacroRunner {
       shouldAbort?: () => boolean
     }
   ): Promise<RunMacroResult> {
-    const { macroName, recursionDepth, settings, sessionType, onLog, isGlobalMasterEnabled, shouldAbort } = params
+    const {
+      macroName,
+      recursionDepth,
+      settings,
+      sessionType,
+      onLog,
+      isGlobalMasterEnabled,
+      shouldAbort
+    } = params
 
     if (recursionDepth > MAX_REPEAT_NESTING_DEPTH) {
       onLog({

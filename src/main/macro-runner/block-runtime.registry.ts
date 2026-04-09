@@ -164,7 +164,12 @@ const extractSingleKeyToken = (command: RuntimeCommand, commandType: string): st
 
 const extractShortcutTokens = (command: RuntimeCommand): string[] => {
   if (command.payload && typeof command.payload === 'object') {
-    const payload = command.payload as { shortcut?: unknown; key?: unknown; keys?: unknown; value?: unknown }
+    const payload = command.payload as {
+      shortcut?: unknown
+      key?: unknown
+      keys?: unknown
+      value?: unknown
+    }
     const source = [payload.shortcut, payload.key, payload.keys, payload.value].find(
       (item) => typeof item === 'string' && item.trim().length > 0
     )
@@ -349,7 +354,11 @@ const runAutoclickerTimed = async (
     throw new Error('AUTOCLICKER_TIMED command is missing payload')
   }
 
-  const payload = command.payload as { button?: unknown; frequencyMs?: unknown; durationMs?: unknown }
+  const payload = command.payload as {
+    button?: unknown
+    frequencyMs?: unknown
+    durationMs?: unknown
+  }
   const { label: buttonLabel, button } = resolveMouseButton(payload.button)
   const frequencyMs =
     typeof payload.frequencyMs === 'number' ? Math.max(1, Math.round(payload.frequencyMs)) : 100
@@ -445,7 +454,10 @@ const runMoveMouseDuration = async (
     message: `Moving mouse to (${x}, ${y}) over ${durationMs}ms.`
   })
 
-  const mouseTimeoutMs = Math.max(getCommandTimeoutMs('mouse', context.sessionType), durationMs + 250)
+  const mouseTimeoutMs = Math.max(
+    getCommandTimeoutMs('mouse', context.sessionType),
+    durationMs + 250
+  )
   await executeWithTimeout(
     () => mouse.setPosition(new Point(x, y)),
     mouseTimeoutMs,
@@ -490,6 +502,29 @@ const extractRepeat = (command: RuntimeCommand): { count: number; commands: Runt
     count,
     commands: parsedNestedCommands
   }
+}
+
+const extractLoopCommands = (command: RuntimeCommand): RuntimeCommand[] => {
+  if (!command.payload || typeof command.payload !== 'object') {
+    throw new Error('Loop command is missing payload')
+  }
+
+  const payload = command.payload as { commands?: unknown }
+  if (!Array.isArray(payload.commands)) {
+    throw new Error('Loop command is missing nested commands array')
+  }
+
+  const nestedCommands = payload.commands
+    .slice(0, MAX_REPEAT_NESTED_COMMANDS)
+    .map((item) => RuntimeCommandSchema.safeParse(item))
+
+  if (nestedCommands.some((item) => !item.success)) {
+    throw new Error('Loop command contains invalid nested command payload')
+  }
+
+  return nestedCommands
+    .filter((item): item is { success: true; data: RuntimeCommand } => item.success)
+    .map((item) => item.data)
 }
 
 export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCommandHandler>> = {
@@ -576,12 +611,38 @@ export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCom
 
     return true
   },
-  INFINITE_LOOP: async (_command, context) => {
+  INFINITE_LOOP: async (command, context) => {
+    const commands = extractLoopCommands(command)
     context.onLog({
-      level: 'WARN',
-      message: 'Skipped unsupported INFINITE_LOOP.'
+      level: 'RUN',
+      message: 'Starting infinite loop block.'
     })
-    return true
+
+    let iteration = 0
+    while (true) {
+      if (context.shouldAbort() || !context.isGlobalMasterEnabled()) {
+        context.onLog({
+          level: 'WARN',
+          message: `Infinite loop stopped after ${iteration} iterations.`
+        })
+        return false
+      }
+
+      iteration += 1
+      context.onLog({
+        level: 'INFO',
+        message: `Infinite loop iteration ${iteration}.`
+      })
+
+      const nestedSuccess = await context.runNestedCommands(commands)
+      if (!nestedSuccess && context.settings.stopOnError) {
+        return false
+      }
+
+      if (commands.length === 0) {
+        await sleep(Math.max(10, context.settings.delayMs))
+      }
+    }
   }
 }
 

@@ -9,7 +9,7 @@ function AppLayout({ children }: PropsWithChildren): React.JSX.Element {
   const isEditorScreen = activeScreen === 'editor'
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[var(--kb-bg-main)] text-[var(--kb-text-main)]">
+    <div className="h-screen w-full overflow-hidden bg-(--kb-bg-main) text-(--kb-text-main)">
       <div className="flex h-full w-full overflow-hidden">
         <Sidebar />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">

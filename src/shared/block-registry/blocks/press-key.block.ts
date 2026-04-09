@@ -4,9 +4,24 @@ import type { BlockDefinition } from '../types'
 const PressKeyPayloadSchema = z
   .object({
     label: z.string().optional(),
-    key: z.string().trim().min(1).refine((value) => !value.includes('+')).optional(),
-    keys: z.string().trim().min(1).refine((value) => !value.includes('+')).optional(),
-    value: z.string().trim().min(1).refine((value) => !value.includes('+')).optional()
+    key: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^+]+$/)
+      .optional(),
+    keys: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^+]+$/)
+      .optional(),
+    value: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^+]+$/)
+      .optional()
   })
   .passthrough()
 

@@ -78,17 +78,17 @@ function ActionBlock({
   const showTopNotch = node.type !== 'START'
 
   return (
-    <article className="relative w-[430px]">
+    <article className="relative w-107.5">
       {showTopNotch ? (
         <div
-          className={`pointer-events-none absolute top-0 left-[30px] z-30 h-[11px] w-[74px] rounded-b-[6px] border-r border-b border-l -translate-y-[1px] ${highlightTopNotch ? 'border-[var(--kb-node-notch-highlight-border)] bg-[var(--kb-node-notch-highlight-top-bg)]' : 'border-[var(--kb-node-notch-default-border)] bg-[var(--kb-node-notch-default-top-bg)]'}`}
+          className={`pointer-events-none absolute top-0 left-7.5 z-30 h-2.75 w-18.5 rounded-b-md border-r border-b border-l -translate-y-px ${highlightTopNotch ? 'border-(--kb-node-notch-highlight-border) bg-(--kb-node-notch-highlight-top-bg)' : 'border-(--kb-node-notch-default-border) bg-(--kb-node-notch-default-top-bg)'}`}
         />
       ) : null}
       <div
-        className={`relative rounded border bg-gradient-to-r ${colorByType[node.type]} px-5 py-3 text-white shadow-[0_14px_30px_-20px_rgba(2,8,22,0.9)] ${isSelected ? 'border-[var(--kb-node-selected-border)] ring-2 ring-[var(--kb-node-selected-border)]/70' : 'border-[var(--kb-border)]'}`}
+        className={`relative rounded border bg-linear-to-r ${colorByType[node.type]} px-5 py-3 text-white shadow-[0_14px_30px_-20px_rgba(2,8,22,0.9)] ${isSelected ? 'border-(--kb-node-selected-border) ring-2 ring-(--kb-node-selected-border)/70' : 'border-(--kb-border)'}`}
       >
         <div
-          className={`pointer-events-none absolute bottom-0 left-[30px] z-30 h-[12px] w-[74px] translate-y-[11px] rounded-b-[7px] border-r border-b border-l ${highlightBottomNotch ? 'border-[var(--kb-node-notch-highlight-border)] bg-[var(--kb-node-notch-highlight-bottom-bg)]' : 'border-[var(--kb-node-notch-default-border)] bg-[var(--kb-node-notch-default-bottom-bg)]'}`}
+          className={`pointer-events-none absolute bottom-0 left-7.5 z-30 h-3 w-18.5 translate-y-2.75 rounded-b-[7px] border-r border-b border-l ${highlightBottomNotch ? 'border-(--kb-node-notch-highlight-border) bg-(--kb-node-notch-highlight-bottom-bg)' : 'border-(--kb-node-notch-default-border) bg-(--kb-node-notch-default-bottom-bg)'}`}
         />
 
         <div className="flex items-center justify-between gap-3">
@@ -97,7 +97,10 @@ function ActionBlock({
             <p className="text-[22px] font-semibold tracking-tight">{label}</p>
           </div>
 
-          {node.type === 'START' || node.type === 'PRESS_KEY' || node.type === 'HOLD_KEY' || node.type === 'EXECUTE_SHORTCUT' ? (
+          {node.type === 'START' ||
+          node.type === 'PRESS_KEY' ||
+          node.type === 'HOLD_KEY' ||
+          node.type === 'EXECUTE_SHORTCUT' ? (
             <ShortcutRecorderInput
               value={
                 node.type === 'START' || node.type === 'EXECUTE_SHORTCUT' ? shortcut : keyToPress
@@ -119,7 +122,7 @@ function ActionBlock({
               value={keyToPress}
               onChange={(event) => onUpdatePayload(node.id, { key: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-44 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-44 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.singleKey')}
             />
           </div>
@@ -135,10 +138,12 @@ function ActionBlock({
               min={1}
               value={holdMs}
               onChange={(event) =>
-                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, {
+                  durationMs: Math.max(1, Number(event.target.value) || 1)
+                })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-28 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-28 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
           </div>
@@ -153,7 +158,7 @@ function ActionBlock({
               value={shortcut}
               onChange={(event) => onUpdatePayload(node.id, { shortcut: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-48 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-48 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.keyCombo')}
             />
           </div>
@@ -168,7 +173,7 @@ function ActionBlock({
               value={textToType}
               onChange={(event) => onUpdatePayload(node.id, { text: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-full rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-full rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
               placeholder={tx('editor.placeholder.typeText')}
             />
           </div>
@@ -187,7 +192,7 @@ function ActionBlock({
                 onUpdatePayload(node.id, { durationMs: Number(event.target.value) || 0 })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-28 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-28 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
           </div>
@@ -203,7 +208,7 @@ function ActionBlock({
               value={mouseX}
               onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               {tx('editor.field.y')}
@@ -213,13 +218,13 @@ function ActionBlock({
               value={mouseY}
               onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <select
               value={mouseButton}
               onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             >
               <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
@@ -238,10 +243,12 @@ function ActionBlock({
               min={1}
               value={frequencyMs}
               onChange={(event) =>
-                onUpdatePayload(node.id, { frequencyMs: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, {
+                  frequencyMs: Math.max(1, Number(event.target.value) || 1)
+                })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
@@ -252,17 +259,19 @@ function ActionBlock({
               min={1}
               value={waitMs}
               onChange={(event) =>
-                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, {
+                  durationMs: Math.max(1, Number(event.target.value) || 1)
+                })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
             <select
               value={mouseButton}
               onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             >
               <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
@@ -281,17 +290,19 @@ function ActionBlock({
               min={1}
               value={frequencyMs}
               onChange={(event) =>
-                onUpdatePayload(node.id, { frequencyMs: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, {
+                  frequencyMs: Math.max(1, Number(event.target.value) || 1)
+                })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
             <select
               value={mouseButton}
               onChange={(event) => onUpdatePayload(node.id, { button: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             >
               <option value="LEFT">{tx('editor.mouseButton.LEFT')}</option>
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
@@ -310,7 +321,7 @@ function ActionBlock({
               value={mouseX}
               onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               {tx('editor.field.y')}
@@ -320,7 +331,7 @@ function ActionBlock({
               value={mouseY}
               onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-20 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               {tx('editor.field.durationMs')}
@@ -330,10 +341,12 @@ function ActionBlock({
               min={1}
               value={waitMs}
               onChange={(event) =>
-                onUpdatePayload(node.id, { durationMs: Math.max(1, Number(event.target.value) || 1) })
+                onUpdatePayload(node.id, {
+                  durationMs: Math.max(1, Number(event.target.value) || 1)
+                })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
           </div>
@@ -352,7 +365,7 @@ function ActionBlock({
                 onUpdatePayload(node.id, { count: Math.max(1, Number(event.target.value) || 1) })
               }
               onPointerDown={(event) => event.stopPropagation()}
-              className="h-8 w-24 rounded border border-white/20 bg-[var(--kb-node-input-bg)] px-2 text-sm text-white outline-none focus:border-white/40"
+              className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
           </div>
         ) : null}

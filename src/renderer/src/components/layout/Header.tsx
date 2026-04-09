@@ -53,10 +53,10 @@ function Header(): React.JSX.Element {
     : tx('header.badge.system', { status: systemStatus })
 
   return (
-    <header className="relative flex items-center justify-between border-b border-[var(--kb-border)] px-6 py-4">
+    <header className="relative flex items-center justify-between border-b border-(--kb-border) px-6 py-4">
       <div className="flex items-center gap-4">
-        <h1 className="text-[34px] font-semibold text-[var(--kb-text-main)]">{title}</h1>
-        <span className="inline-flex items-center gap-2 rounded-full bg-[var(--kb-bg-overlay)] px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
+        <h1 className="text-[34px] font-semibold text-(--kb-text-main)">{title}</h1>
+        <span className="inline-flex items-center gap-2 rounded-full bg-(--kb-bg-overlay) px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-(--kb-text-muted) uppercase">
           <span
             className={`h-1.5 w-1.5 rounded-full ${systemStatus === 'OPTIMAL' ? 'bg-[rgb(var(--kb-accent-rgb))]' : 'bg-orange-400'}`}
           />
@@ -86,17 +86,17 @@ function Header(): React.JSX.Element {
       </div>
 
       {isNotificationsPanelOpen ? (
-        <article className="absolute top-full right-20 z-[1200] mt-3 w-[360px] rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
+        <article className="absolute top-full right-20 z-1200 mt-3 w-90 rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[var(--kb-text-main)]">Recent activity</h3>
+            <h3 className="text-sm font-semibold text-(--kb-text-main)">Recent activity</h3>
             <Button variant="ghost" className="h-7 px-2 text-xs" onClick={closeNotificationsPanel}>
               Close
             </Button>
           </div>
-          <ul className="space-y-2 text-xs text-[var(--kb-text-muted)]">
+          <ul className="space-y-2 text-xs text-(--kb-text-muted)">
             {logs.slice(0, 5).map((log) => (
-              <li key={log.id} className="rounded-md bg-[var(--kb-bg-overlay)] px-3 py-2">
-                <p className="font-semibold text-[var(--kb-text-main)]">{log.level}</p>
+              <li key={log.id} className="rounded-md bg-(--kb-bg-overlay) px-3 py-2">
+                <p className="font-semibold text-(--kb-text-main)">{log.level}</p>
                 <p className="mt-1">{log.message}</p>
               </li>
             ))}
@@ -106,14 +106,14 @@ function Header(): React.JSX.Element {
       ) : null}
 
       {isHelpPanelOpen ? (
-        <article className="absolute top-full right-8 z-[1200] mt-3 w-[360px] rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
+        <article className="absolute top-full right-8 z-1200 mt-3 w-90 rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[var(--kb-text-main)]">Quick help</h3>
+            <h3 className="text-sm font-semibold text-(--kb-text-main)">Quick help</h3>
             <Button variant="ghost" className="h-7 px-2 text-xs" onClick={closeHelpPanel}>
               Close
             </Button>
           </div>
-          <ul className="space-y-2 text-xs text-[var(--kb-text-muted)]">
+          <ul className="space-y-2 text-xs text-(--kb-text-muted)">
             <li>Create macros from Dashboard or header button.</li>
             <li>Use pencil on a macro card to open it in the editor.</li>
             <li>Record shortcut in editor top bar and save macro.</li>

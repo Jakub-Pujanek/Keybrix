@@ -96,12 +96,12 @@ function BlocksLibraryPanel({ onAddBlock }: BlocksLibraryPanelProps): React.JSX.
   }
 
   return (
-    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-4">
+    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col rounded border border-(--kb-border) bg-(--kb-bg-panel) p-4">
       <div className="mb-5 flex items-center justify-between">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-(--kb-text-muted) uppercase">
           {tx('editor.library.title')}
         </p>
-        <Filter className="h-3 w-3 text-[var(--kb-text-muted)]" />
+        <Filter className="h-3 w-3 text-(--kb-text-muted)" />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">

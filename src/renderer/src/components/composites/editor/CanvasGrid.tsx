@@ -248,7 +248,7 @@ function CanvasGrid({
       onWheel={handleCanvasWheel}
       onDragOver={handleCanvasDragOver}
       onDrop={handleCanvasDrop}
-      className={`relative h-full min-h-0 w-full rounded border border-[var(--kb-border)] bg-[var(--kb-editor-canvas-bg)] ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`relative h-full min-h-0 w-full rounded border border-(--kb-border) bg-(--kb-editor-canvas-bg) ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       <div
         className="absolute left-0 top-0 origin-top-left"
@@ -269,7 +269,7 @@ function CanvasGrid({
             <div
               key={node.id}
               data-editor-block="1"
-              className={`absolute cursor-grab active:cursor-grabbing ${draggingNodeIds.has(node.id) ? 'z-[9999]' : 'z-0'}`}
+              className={`absolute cursor-grab active:cursor-grabbing ${draggingNodeIds.has(node.id) ? 'z-9999' : 'z-0'}`}
               style={{
                 transform: `translate(${display.x + WORLD_CENTER_X}px, ${display.y + WORLD_CENTER_Y}px)`
               }}

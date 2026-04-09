@@ -272,7 +272,10 @@ describe('MacroRunner', () => {
           commands: [
             { type: 'HOLD_KEY', payload: { key: 'A', durationMs: 1 } },
             { type: 'EXECUTE_SHORTCUT', payload: { shortcut: 'CTRL+ENTER' } },
-            { type: 'AUTOCLICKER_TIMED', payload: { button: 'LEFT', frequencyMs: 1, durationMs: 3 } },
+            {
+              type: 'AUTOCLICKER_TIMED',
+              payload: { button: 'LEFT', frequencyMs: 1, durationMs: 3 }
+            },
             { type: 'MOVE_MOUSE_DURATION', payload: { x: 20, y: 10, durationMs: 1 } }
           ]
         }
@@ -312,6 +315,76 @@ describe('MacroRunner', () => {
       },
       onLog: () => undefined,
       isGlobalMasterEnabled: () => false
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('runs INFINITE_LOOP nested commands until abort signal', async () => {
+    let checks = 0
+
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-infinite-loop',
+        name: 'Infinite Loop',
+        shortcut: 'CTRL+L',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            {
+              type: 'INFINITE_LOOP',
+              payload: {
+                commands: [{ type: 'TYPE_TEXT', payload: { text: 'tick' } }]
+              }
+            }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: false
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true,
+      shouldAbort: () => {
+        checks += 1
+        return checks >= 8
+      }
+    })
+
+    expect(result.success).toBe(true)
+    expect(typeMock.mock.calls.filter((call) => call[0] === 'tick').length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('fails INFINITE_LOOP when nested command fails and stopOnError is enabled', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-infinite-loop-stop-on-error',
+        name: 'Infinite Loop Stop On Error',
+        shortcut: 'CTRL+E',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            {
+              type: 'INFINITE_LOOP',
+              payload: {
+                commands: [{ type: 'HOLD_KEY', payload: {} }]
+              }
+            }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true,
+      shouldAbort: () => false
     })
 
     expect(result.success).toBe(false)

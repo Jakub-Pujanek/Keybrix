@@ -367,7 +367,10 @@ function EditorScreen(): React.JSX.Element {
   }, [deleteSelected])
 
   return (
-    <section data-testid="editor-screen" className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+    <section
+      data-testid="editor-screen"
+      className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden"
+    >
       <EditorTopBar
         macroTitle={macroTitle}
         shortcut={shortcut}

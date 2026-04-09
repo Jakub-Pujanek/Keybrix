@@ -230,10 +230,16 @@ export const coerceAppSettings = (input: unknown): AppSettings => {
   })
 }
 
-export const UpdateAppSettingsInputSchema = AppSettingsSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  {
-    message: 'At least one settings field must be provided.'
+export const UpdateAppSettingsInputSchema = AppSettingsSchema.partial().superRefine(
+  (value, context) => {
+    if (Object.keys(value).length > 0) {
+      return
+    }
+
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'At least one settings field must be provided.'
+    })
   }
 )
 export type UpdateAppSettingsInput = z.infer<typeof UpdateAppSettingsInputSchema>
