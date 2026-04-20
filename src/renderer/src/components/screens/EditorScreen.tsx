@@ -18,6 +18,7 @@ const KNOWN_REASON_CODES = new Set<ManualRunResult['reasonCode']>([
   'SUCCESS',
   'MACRO_NOT_FOUND',
   'ALREADY_RUNNING',
+  'NOT_RUNNING',
   'GLOBAL_MASTER_OFF',
   'WAYLAND_BLOCKED',
   'COMMAND_TIMEOUT',
@@ -157,6 +158,13 @@ const classifyRunFailure = (
     }
   }
 
+  if (result.reasonCode === 'NOT_RUNNING') {
+    return {
+      status: 'BLOCKED',
+      message: 'To makro nie jest aktualnie uruchomione.'
+    }
+  }
+
   if (result.reasonCode === 'MACRO_NOT_FOUND') {
     return {
       status: 'ERROR',
@@ -258,6 +266,13 @@ function EditorScreen(): React.JSX.Element {
   const handleShortcutKeyUp = useEditorStore((state) => state.handleShortcutKeyUp)
   const saveMacroFromEditor = useEditorStore((state) => state.saveMacroFromEditor)
   const testRunMacro = useEditorStore((state) => state.testRunMacro)
+  const stopTestRunMacro = useEditorStore((state) => state.stopTestRunMacro)
+  const mousePickerTargetNodeId = useEditorStore((state) => state.mousePickerTargetNodeId)
+  const mousePickerPreview = useEditorStore((state) => state.mousePickerPreview)
+  const isMousePickerActive = useEditorStore((state) => state.isMousePickerActive)
+  const startMousePicker = useEditorStore((state) => state.startMousePicker)
+  const stopMousePicker = useEditorStore((state) => state.stopMousePicker)
+  const clearMousePickerPreview = useEditorStore((state) => state.clearMousePickerPreview)
   const recentLogs = useActivityStore((state) => state.logs)
   const loadRecentLogs = useActivityStore((state) => state.loadRecentLogs)
   const subscribeRealtimeLogs = useActivityStore((state) => state.subscribeRealtimeLogs)
@@ -366,6 +381,13 @@ function EditorScreen(): React.JSX.Element {
     }
   }, [deleteSelected])
 
+  useEffect(() => {
+    return () => {
+      void stopMousePicker().catch(() => undefined)
+      clearMousePickerPreview()
+    }
+  }, [clearMousePickerPreview, stopMousePicker])
+
   return (
     <section
       data-testid="editor-screen"
@@ -431,6 +453,15 @@ function EditorScreen(): React.JSX.Element {
             }}
             onCancelShortcutRecording={cancelShortcutRecording}
             onUpdatePayload={updateNodePayload}
+            mousePickerTargetNodeId={mousePickerTargetNodeId}
+            mousePickerPreview={mousePickerPreview}
+            isMousePickerActive={isMousePickerActive}
+            onStartMousePicker={(nodeId) => {
+              void startMousePicker(nodeId)
+            }}
+            onStopMousePicker={() => {
+              void stopMousePicker()
+            }}
           />
 
           <CanvasControls
@@ -563,6 +594,17 @@ function EditorScreen(): React.JSX.Element {
         onClose={() => {
           if (isTestRunning) return
           setIsTestModalOpen(false)
+        }}
+        onStop={async () => {
+          const attemptId = globalThis.crypto.randomUUID()
+          const stopResult = await stopTestRunMacro({ attemptId })
+
+          if (stopResult.success || stopResult.reasonCode === 'ABORTED') {
+            return
+          }
+
+          const classified = classifyRunFailure(stopResult)
+          setTestError(`${classified.message} [attempt=${attemptId}]`)
         }}
       />
     </section>

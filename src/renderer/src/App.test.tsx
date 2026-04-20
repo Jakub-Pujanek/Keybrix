@@ -54,6 +54,11 @@ const mockApi: KeybrixApi = {
       runId: 'run-test',
       success: true,
       reasonCode: 'SUCCESS'
+    }),
+    stop: async () => ({
+      runId: 'run-stop-test',
+      success: true,
+      reasonCode: 'ABORTED'
     })
   },
   stats: {

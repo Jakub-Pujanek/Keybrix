@@ -60,28 +60,28 @@ const items: LibraryItem[] = BLOCK_REGISTRY.map((item) => ({
 }))
 
 const groupAccentClass: Record<GroupName, string> = {
-  triggers: 'text-[rgb(var(--kb-accent-rgb))]',
-  inputKeys: 'text-[rgb(var(--kb-accent-rgb)/0.78)]',
-  mouseActions: 'text-[#f57a00]',
-  logicFlow: 'text-[#00b58b]'
+  triggers: 'text-(--kb-node-start-from)',
+  inputKeys: 'text-(--kb-node-press-from)',
+  mouseActions: 'text-(--kb-node-mouse-from)',
+  logicFlow: 'text-(--kb-node-wait-from)'
 }
 
 const itemClassByGroup: Record<GroupName, string> = {
   triggers:
-    'border-[rgb(var(--kb-accent-rgb)/0.38)] bg-[var(--kb-bg-surface)] hover:border-[rgb(var(--kb-accent-rgb)/0.75)] hover:bg-[rgb(var(--kb-accent-rgb)/0.14)] text-[var(--kb-text-main)]',
+    'border-[#5a49ff]/45 bg-[#1f2444] hover:border-[#7d6fff] hover:bg-[#262b52] text-[#f0ecff]',
   inputKeys:
-    'border-[rgb(var(--kb-accent-rgb)/0.28)] bg-[var(--kb-bg-surface)] hover:border-[rgb(var(--kb-accent-rgb)/0.55)] hover:bg-[rgb(var(--kb-accent-rgb)/0.1)] text-[var(--kb-text-main)]',
+    'border-[#2f6eff]/45 bg-[#1b2c53] hover:border-[#5c8dff] hover:bg-[#223665] text-[#e4edff]',
   mouseActions:
-    'border-[#c46612]/45 bg-[#32241f] hover:border-[#ef8d32] hover:bg-[#412b22] text-[#f7d7bd]',
+    'border-[#f57a00]/45 bg-[#3a2a1f] hover:border-[#ef8d32] hover:bg-[#4a3121] text-[#f7d7bd]',
   logicFlow:
-    'border-[#108f75]/45 bg-[#182936] hover:border-[#11b798] hover:bg-[#1b3040] text-[#d0f5eb]'
+    'border-[#00a97b]/45 bg-[#17342f] hover:border-[#0fc696] hover:bg-[#1d423b] text-[#d4f8ef]'
 }
 
 const iconClassByGroup: Record<GroupName, string> = {
-  triggers: 'text-[rgb(var(--kb-accent-rgb))]',
-  inputKeys: 'text-[rgb(var(--kb-accent-rgb)/0.8)]',
-  mouseActions: 'text-[#ff9a3f]',
-  logicFlow: 'text-[#11c7a3]'
+  triggers: 'text-(--kb-node-start-from)',
+  inputKeys: 'text-(--kb-node-press-from)',
+  mouseActions: 'text-(--kb-node-mouse-from)',
+  logicFlow: 'text-(--kb-node-wait-from)'
 }
 
 function BlocksLibraryPanel({ onAddBlock }: BlocksLibraryPanelProps): React.JSX.Element {

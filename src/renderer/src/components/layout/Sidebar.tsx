@@ -16,7 +16,7 @@ function Sidebar(): React.JSX.Element {
   const { tx } = useI18n()
 
   return (
-    <aside className="flex w-[72px] flex-col items-center border-r border-[var(--kb-border)] bg-[var(--kb-bg-shell)] py-3">
+    <aside className="flex w-[72px] flex-col items-center border-r border-(--kb-border) bg-(--kb-bg-shell) py-3">
       <img src={keybrixLogo} alt="KeyBrix" className="mb-6 h-9 w-9 select-none" draggable={false} />
 
       <nav className="flex flex-col items-center gap-3">
@@ -34,7 +34,7 @@ function Sidebar(): React.JSX.Element {
               onClick={() => {
                 if (isRealScreen) setActiveScreen(item.key)
               }}
-              className={`grid h-9 w-9 place-items-center rounded-md border transition ${isActive ? 'border-[rgb(var(--kb-accent-rgb))] bg-[rgb(var(--kb-accent-rgb)/0.18)] text-[rgb(var(--kb-accent-rgb))]' : 'border-transparent bg-transparent text-[var(--kb-text-muted)] hover:bg-[var(--kb-bg-overlay)] hover:text-[var(--kb-text-main)]'}`}
+              className={`grid h-9 w-9 place-items-center rounded-md border transition ${isActive ? 'border-[rgb(var(--kb-accent-rgb))] bg-[rgb(var(--kb-accent-rgb)/0.18)] text-[rgb(var(--kb-accent-rgb))]' : 'border-transparent bg-transparent text-(--kb-text-muted) hover:bg-(--kb-bg-overlay) hover:text-(--kb-text-main)'}`}
             >
               <Icon className="h-4 w-4" />
             </button>

@@ -34,18 +34,14 @@ function CreateMacroModal({
       }}
     >
       <article
-        className="w-full max-w-md rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-5 shadow-[0_24px_56px_-28px_rgba(0,0,0,0.65)]"
+        className="w-full max-w-md rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-5 shadow-[0_24px_56px_-28px_rgba(0,0,0,0.65)]"
         onClick={(event) => {
           event.stopPropagation()
         }}
       >
         <header>
-          <h3 className="text-xl font-semibold text-[var(--kb-text-main)]">
-            {tx('macro.newMacro')}
-          </h3>
-          <p className="mt-1 text-sm text-[var(--kb-text-muted)]">
-            Enter a name for the new macro.
-          </p>
+          <h3 className="text-xl font-semibold text-(--kb-text-main)">{tx('macro.newMacro')}</h3>
+          <p className="mt-1 text-sm text-(--kb-text-muted)">Enter a name for the new macro.</p>
         </header>
 
         <form
@@ -62,7 +58,7 @@ function CreateMacroModal({
             void onSubmit({ name: trimmed.slice(0, 60), openNow })
           }}
         >
-          <label className="block text-sm font-medium text-[var(--kb-text-main)]">
+          <label className="block text-sm font-medium text-(--kb-text-main)">
             Macro name
             <input
               autoFocus
@@ -71,12 +67,12 @@ function CreateMacroModal({
               onChange={(event) => {
                 setName(event.target.value)
               }}
-              className="mt-2 w-full rounded-md border border-[var(--kb-border)] bg-[var(--kb-bg-overlay)] px-3 py-2 text-sm text-[var(--kb-text-main)] outline-none focus:border-[rgb(var(--kb-accent-rgb))]"
+              className="mt-2 w-full rounded-md border border-(--kb-border) bg-(--kb-bg-overlay) px-3 py-2 text-sm text-(--kb-text-main) outline-none focus:border-[rgb(var(--kb-accent-rgb))]"
               placeholder="My New Macro"
             />
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-[var(--kb-text-muted)]">
+          <label className="flex items-center gap-2 text-sm text-(--kb-text-muted)">
             <input
               type="checkbox"
               checked={openNow}

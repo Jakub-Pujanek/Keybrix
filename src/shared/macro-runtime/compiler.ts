@@ -45,6 +45,23 @@ const asRecord = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>
 }
 
+const asFiniteNumber = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null
+  }
+
+  return value
+}
+
+const asPositiveRoundedIntOr = (value: unknown, fallback: number): number => {
+  const numeric = asFiniteNumber(value)
+  if (numeric === null) {
+    return fallback
+  }
+
+  return Math.max(1, Math.round(numeric))
+}
+
 const normalizeSingleToken = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
 
@@ -105,13 +122,13 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
   }
 
   if (node.type === 'MOUSE_CLICK') {
-    const x = payload['x']
-    const y = payload['y']
+    const x = asFiniteNumber(payload['x'])
+    const y = asFiniteNumber(payload['y'])
     const button = payload['button']
 
     const next: Record<string, unknown> = {}
-    if (typeof x === 'number') next['x'] = x
-    if (typeof y === 'number') next['y'] = y
+    if (x !== null) next['x'] = Math.round(x)
+    if (y !== null) next['y'] = Math.round(y)
     if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
       next['button'] = button
     }
@@ -124,8 +141,8 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
     const durationMs = payload['durationMs']
 
     const next: Record<string, unknown> = {
-      frequencyMs: typeof frequencyMs === 'number' ? Math.max(1, Math.round(frequencyMs)) : 100,
-      durationMs: typeof durationMs === 'number' ? Math.max(1, Math.round(durationMs)) : 1000
+      frequencyMs: asPositiveRoundedIntOr(frequencyMs, 100),
+      durationMs: asPositiveRoundedIntOr(durationMs, 1000)
     }
 
     if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
@@ -140,7 +157,7 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
     const frequencyMs = payload['frequencyMs']
 
     const next: Record<string, unknown> = {
-      frequencyMs: typeof frequencyMs === 'number' ? Math.max(1, Math.round(frequencyMs)) : 100
+      frequencyMs: asPositiveRoundedIntOr(frequencyMs, 100)
     }
 
     if (button === 'LEFT' || button === 'RIGHT' || button === 'MIDDLE') {
@@ -151,16 +168,16 @@ const normalizeCommandPayload = (node: EditorNode): Record<string, unknown> => {
   }
 
   if (node.type === 'MOVE_MOUSE_DURATION') {
-    const x = payload['x']
-    const y = payload['y']
+    const x = asFiniteNumber(payload['x'])
+    const y = asFiniteNumber(payload['y'])
     const durationMs = payload['durationMs']
 
     const next: Record<string, unknown> = {
-      durationMs: typeof durationMs === 'number' ? Math.max(1, Math.round(durationMs)) : 250
+      durationMs: asPositiveRoundedIntOr(durationMs, 250)
     }
 
-    if (typeof x === 'number') next['x'] = x
-    if (typeof y === 'number') next['y'] = y
+    if (x !== null) next['x'] = Math.round(x)
+    if (y !== null) next['y'] = Math.round(y)
 
     return next
   }

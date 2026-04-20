@@ -208,6 +208,18 @@ export const SessionCheckResultSchema = z.object({
 })
 export type SessionCheckResult = z.infer<typeof SessionCheckResultSchema>
 
+export const MousePickerPointSchema = z.object({
+  x: z.number().int().nonnegative(),
+  y: z.number().int().nonnegative(),
+  timestamp: z.string().datetime()
+})
+export type MousePickerPoint = z.infer<typeof MousePickerPointSchema>
+
+export const MousePickerPreviewSchema = MousePickerPointSchema.extend({
+  isActive: z.boolean()
+})
+export type MousePickerPreview = z.infer<typeof MousePickerPreviewSchema>
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   launchAtStartup: true,
   minimizeToTrayOnClose: true,
@@ -253,6 +265,7 @@ export const ManualRunReasonCodeSchema = z.enum([
   'SUCCESS',
   'SAVE_FAILED',
   'ALREADY_RUNNING',
+  'NOT_RUNNING',
   'MACRO_NOT_FOUND',
   'INVALID_MACRO_ID',
   'GLOBAL_MASTER_OFF',
@@ -288,7 +301,8 @@ export const IPC_CHANNELS = {
     save: 'macros:save',
     delete: 'macros:delete',
     toggle: 'macros:toggle',
-    run: 'macros:run'
+    run: 'macros:run',
+    stop: 'macros:stop'
   },
   stats: {
     get: 'stats:get'
@@ -296,6 +310,12 @@ export const IPC_CHANNELS = {
   logs: {
     getRecent: 'logs:get-recent',
     newLog: 'logs:new-log'
+  },
+  mousePicker: {
+    start: 'mouse-picker:start',
+    stop: 'mouse-picker:stop',
+    previewUpdate: 'mouse-picker:preview-update',
+    coordinateSelected: 'mouse-picker:coordinate-selected'
   },
   system: {
     getSessionInfo: 'system:get-session-info',
@@ -324,6 +344,7 @@ export interface KeybrixApi {
     delete: (id: string) => Promise<boolean>
     toggle: (id: string, isActive: boolean) => Promise<boolean>
     runManually: (id: string, context?: { attemptId?: string }) => Promise<ManualRunResult>
+    stop: (id: string, context?: { attemptId?: string }) => Promise<ManualRunResult>
   }
   stats: {
     getDashboardStats: () => Promise<DashboardStats>
@@ -331,6 +352,12 @@ export interface KeybrixApi {
   logs: {
     getRecent: () => Promise<ActivityLog[]>
     onNewLog: (callback: (log: ActivityLog) => void) => () => void
+  }
+  mousePicker: {
+    start: () => Promise<boolean>
+    stop: () => Promise<boolean>
+    onPreviewUpdate: (callback: (preview: MousePickerPreview) => void) => () => void
+    onCoordinateSelected: (callback: (point: MousePickerPoint) => void) => () => void
   }
   system: {
     getSessionInfo: () => Promise<RuntimeSessionInfo>

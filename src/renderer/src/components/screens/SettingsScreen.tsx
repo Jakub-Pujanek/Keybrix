@@ -7,7 +7,7 @@ import keybrixLogo from '../../assets/KeyBrix.svg'
 
 function SectionHeader({ title }: { title: string }): React.JSX.Element {
   return (
-    <h2 className="mb-4 text-[12px] font-bold tracking-[0.18em] text-[var(--kb-text-muted)] uppercase">
+    <h2 className="mb-4 text-[12px] font-bold tracking-[0.18em] text-(--kb-text-muted) uppercase">
       {title}
     </h2>
   )
@@ -48,12 +48,12 @@ function SettingsScreen(): React.JSX.Element {
 
   return (
     <section data-testid="settings-screen" className="h-full overflow-y-auto pb-8">
-      <div className="mx-auto w-full max-w-[860px] space-y-10 pt-3">
+      <div className="mx-auto w-full max-w-215 space-y-10 pt-3">
         <div>
           <SectionHeader title={tx('settings.generalConfiguration')} />
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-[25x] font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-[25px] font-medium text-(--kb-text-main)">
                 {tx('settings.launchAtStartup')}
               </span>
               <ToggleSwitch
@@ -63,8 +63,8 @@ function SettingsScreen(): React.JSX.Element {
                 }}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.minimizeToTrayOnClose')}
               </span>
               <ToggleSwitch
@@ -74,8 +74,8 @@ function SettingsScreen(): React.JSX.Element {
                 }}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.showNotificationsOnMacroRun')}
               </span>
               <ToggleSwitch
@@ -85,8 +85,8 @@ function SettingsScreen(): React.JSX.Element {
                 }}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.languageSelection')}
               </span>
               <div className="relative">
@@ -97,7 +97,7 @@ function SettingsScreen(): React.JSX.Element {
                       language: event.target.value as Language
                     })
                   }}
-                  className="h-9 min-w-[110px] appearance-none rounded bg-[var(--kb-bg-surface-strong)] px-3 pr-8 text-[12px] font-semibold tracking-[0.08em] text-[var(--kb-text-main)] uppercase outline-none"
+                  className="h-9 min-w-27.5 appearance-none rounded bg-(--kb-bg-surface-strong) px-3 pr-8 text-[12px] font-semibold tracking-[0.08em] text-(--kb-text-main) uppercase outline-none"
                 >
                   <option value="POLSKI">{tx('settings.language.polish')}</option>
                   <option value="ENGLISH">{tx('settings.language.english')}</option>
@@ -113,12 +113,12 @@ function SettingsScreen(): React.JSX.Element {
         <div>
           <SectionHeader title={tx('settings.macroEngineSettings')} />
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-[rgb(var(--kb-accent-rgb)/0.45)] bg-[var(--kb-bg-surface)] px-6 py-6 shadow-[0_0_0_1px_rgba(37,79,170,0.12)]">
+            <div className="flex items-center justify-between rounded-lg border border-[rgb(var(--kb-accent-rgb)/0.45)] bg-(--kb-bg-surface) px-6 py-6 shadow-[0_0_0_1px_rgba(37,79,170,0.12)]">
               <div>
-                <p className="text-[30px] font-semibold text-[var(--kb-text-main)]">
+                <p className="text-[30px] font-semibold text-(--kb-text-main)">
                   {tx('settings.globalMasterSwitch')}
                 </p>
-                <p className="mt-1 text-[11px] font-semibold tracking-[0.13em] text-[var(--kb-text-muted)] uppercase">
+                <p className="mt-1 text-[11px] font-semibold tracking-[0.13em] text-(--kb-text-muted) uppercase">
                   {tx('settings.enableAllMacrosGlobally')}
                 </p>
               </div>
@@ -131,11 +131,11 @@ function SettingsScreen(): React.JSX.Element {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.defaultDelayBetweenActions')}
               </span>
-              <div className="flex items-center rounded bg-[var(--kb-bg-surface-strong)] px-2 py-1">
+              <div className="flex items-center rounded bg-(--kb-bg-surface-strong) px-2 py-1">
                 <input
                   type="number"
                   min={0}
@@ -150,14 +150,14 @@ function SettingsScreen(): React.JSX.Element {
                   }}
                   className="h-7 w-12 bg-transparent text-right text-sm text-[rgb(var(--kb-accent-rgb))] outline-none"
                 />
-                <span className="ml-2 text-xs font-semibold text-[var(--kb-text-muted)] uppercase">
+                <span className="ml-2 text-xs font-semibold text-(--kb-text-muted) uppercase">
                   {tx('common.ms')}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.stopExecutionOnError')}
               </span>
               <ToggleSwitch
@@ -173,11 +173,11 @@ function SettingsScreen(): React.JSX.Element {
         <div>
           <SectionHeader title={tx('settings.visualAppearance')} />
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.environmentTheme')}
               </span>
-              <div className="inline-flex rounded bg-[var(--kb-bg-surface-strong)] p-1">
+              <div className="inline-flex rounded bg-(--kb-bg-surface-strong) p-1">
                 {(['DARK', 'LIGHT'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -185,7 +185,7 @@ function SettingsScreen(): React.JSX.Element {
                     onClick={() => {
                       void updateAppSettings({ themeMode: mode })
                     }}
-                    className={`h-7 min-w-[58px] rounded px-3 text-[11px] font-bold tracking-[0.1em] uppercase ${themeMode === mode ? 'bg-[rgb(var(--kb-accent-rgb))] text-white' : 'text-[var(--kb-text-muted)] hover:text-[var(--kb-text-main)]'}`}
+                    className={`h-7 min-w-14.5 rounded px-3 text-[11px] font-bold tracking-widest uppercase ${themeMode === mode ? 'bg-[rgb(var(--kb-accent-rgb))] text-white' : 'text-(--kb-text-muted) hover:text-(--kb-text-main)'}`}
                   >
                     {mode === 'DARK' ? tx('settings.theme.dark') : tx('settings.theme.light')}
                   </button>
@@ -193,8 +193,8 @@ function SettingsScreen(): React.JSX.Element {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-[var(--kb-bg-surface)] px-5 py-5">
-              <span className="text-sm font-medium text-[var(--kb-text-main)]">
+            <div className="flex items-center justify-between rounded-lg bg-(--kb-bg-surface) px-5 py-5">
+              <span className="text-sm font-medium text-(--kb-text-main)">
                 {tx('settings.accentPalette')}
               </span>
               <div className="flex items-center gap-4">
@@ -215,7 +215,7 @@ function SettingsScreen(): React.JSX.Element {
                       onClick={() => {
                         void updateAppSettings({ accentColor: item.key })
                       }}
-                      className={`h-6 w-6 rounded-full ${item.className} ${isActive ? 'ring-2 ring-[var(--kb-text-main)] ring-offset-2 ring-offset-[var(--kb-bg-surface)]' : ''}`}
+                      className={`h-6 w-6 rounded-full ${item.className} ${isActive ? 'ring-2 ring-(--kb-text-main) ring-offset-2 ring-offset-(--kb-bg-surface)' : ''}`}
                       aria-label={`${tx('settings.accentLabel')} ${item.key}`}
                     />
                   )
@@ -225,7 +225,7 @@ function SettingsScreen(): React.JSX.Element {
           </div>
         </div>
 
-        <article className="rounded-2xl bg-[var(--kb-bg-panel)] px-6 py-8">
+        <article className="rounded-2xl bg-(--kb-bg-panel) px-6 py-8">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <img
@@ -235,10 +235,10 @@ function SettingsScreen(): React.JSX.Element {
                 draggable={false}
               />
               <div>
-                <p className="text-3xl font-bold text-[var(--kb-text-main)]">
+                <p className="text-3xl font-bold text-(--kb-text-main)">
                   {tx('common.appVersion')}
                 </p>
-                <p className="mt-1 text-sm tracking-[0.12em] text-[var(--kb-text-muted)] uppercase">
+                <p className="mt-1 text-sm tracking-[0.12em] text-(--kb-text-muted) uppercase">
                   {tx('settings.highPerformanceAutomationSuite')}
                 </p>
                 <button
@@ -251,7 +251,7 @@ function SettingsScreen(): React.JSX.Element {
             </div>
 
             <div className="text-right">
-              <p className="text-[12px] font-bold tracking-[0.16em] text-[var(--kb-text-muted)] uppercase">
+              <p className="text-[12px] font-bold tracking-[0.16em] text-(--kb-text-muted) uppercase">
                 {tx('settings.enginePipeline')}
               </p>
               <span className="mt-3 inline-flex items-center rounded-full bg-[rgb(var(--kb-accent-rgb)/0.2)] px-4 py-2 text-[11px] font-bold tracking-[0.14em] text-[rgb(var(--kb-accent-rgb))] uppercase">

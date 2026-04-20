@@ -14,27 +14,50 @@ type ActionBlockProps = {
   onStartShortcutRecording: (nodeId: string, nodeType: EditorNode['type']) => void
   onCancelShortcutRecording: () => void
   onUpdatePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
+  mousePickerTargetNodeId: string | null
+  mousePickerPreview: { x: number; y: number } | null
+  isMousePickerActive: boolean
+  onStartMousePicker: (nodeId: string) => void
+  onStopMousePicker: () => void
 }
 
 const colorByType: Record<EditorNode['type'], string> = {
-  START: 'from-[var(--kb-node-start-from)] to-[var(--kb-node-start-to)]',
-  PRESS_KEY: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
-  HOLD_KEY: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
-  EXECUTE_SHORTCUT: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
-  WAIT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
-  MOUSE_CLICK: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
-  AUTOCLICKER_TIMED: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
-  AUTOCLICKER_INFINITE: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
-  MOVE_MOUSE_DURATION: 'from-[var(--kb-node-mouse-from)] to-[var(--kb-node-mouse-to)]',
-  TYPE_TEXT: 'from-[var(--kb-node-press-from)] to-[var(--kb-node-press-to)]',
-  REPEAT: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]',
-  INFINITE_LOOP: 'from-[var(--kb-node-wait-from)] to-[var(--kb-node-wait-to)]'
+  START: 'from-(--kb-node-start-from) to-(--kb-node-start-to)',
+  PRESS_KEY: 'from-(--kb-node-press-from) to-(--kb-node-press-to)',
+  HOLD_KEY: 'from-(--kb-node-press-from) to-(--kb-node-press-to)',
+  EXECUTE_SHORTCUT: 'from-(--kb-node-press-from) to-(--kb-node-press-to)',
+  WAIT: 'from-(--kb-node-wait-from) to-(--kb-node-wait-to)',
+  MOUSE_CLICK: 'from-(--kb-node-mouse-from) to-(--kb-node-mouse-to)',
+  AUTOCLICKER_TIMED: 'from-(--kb-node-mouse-from) to-(--kb-node-mouse-to)',
+  AUTOCLICKER_INFINITE: 'from-(--kb-node-mouse-from) to-(--kb-node-mouse-to)',
+  MOVE_MOUSE_DURATION: 'from-(--kb-node-mouse-from) to-(--kb-node-mouse-to)',
+  TYPE_TEXT: 'from-(--kb-node-press-from) to-(--kb-node-press-to)',
+  REPEAT: 'from-(--kb-node-wait-from) to-(--kb-node-wait-to)',
+  INFINITE_LOOP: 'from-(--kb-node-wait-from) to-(--kb-node-wait-to)'
 }
 
 const numeric = (value: unknown, fallback: number): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const nonNegativeIntFromInput = (value: string, fallback: number): number => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return fallback
+  }
+
+  return Math.max(0, Math.round(parsed))
+}
+
+const positiveIntFromInput = (value: string, fallback: number): number => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return fallback
+  }
+
+  return Math.max(1, Math.round(parsed))
 }
 
 function ActionBlock({
@@ -46,7 +69,12 @@ function ActionBlock({
   highlightBottomNotch,
   onStartShortcutRecording,
   onCancelShortcutRecording,
-  onUpdatePayload
+  onUpdatePayload,
+  mousePickerTargetNodeId,
+  mousePickerPreview,
+  isMousePickerActive,
+  onStartMousePicker,
+  onStopMousePicker
 }: ActionBlockProps): React.JSX.Element {
   const { tx } = useI18n()
   const defaultLabelByType: Record<EditorNode['type'], string> = {
@@ -70,12 +98,17 @@ function ActionBlock({
   const holdMs = numeric(node.payload.durationMs, 300)
   const textToType = String(node.payload.text ?? '')
   const waitMs = numeric(node.payload.durationMs, 300)
+  const timedDurationMs = numeric(node.payload.durationMs, 1000)
+  const moveDurationMs = numeric(node.payload.durationMs, 250)
   const mouseX = numeric(node.payload.x, 500)
   const mouseY = numeric(node.payload.y, 300)
   const mouseButton = String(node.payload.button ?? 'LEFT')
   const frequencyMs = numeric(node.payload.frequencyMs, 100)
   const repeatCount = numeric(node.payload.count, 2)
   const showTopNotch = node.type !== 'START'
+  const supportsMousePicker = node.type === 'MOUSE_CLICK' || node.type === 'MOVE_MOUSE_DURATION'
+  const isTargetedByMousePicker = mousePickerTargetNodeId === node.id
+  const hasMousePreview = mousePickerPreview !== null
 
   return (
     <article className="relative w-107.5">
@@ -199,14 +232,18 @@ function ActionBlock({
         ) : null}
 
         {node.type === 'MOUSE_CLICK' ? (
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="text-xs font-semibold tracking-[0.08em] text-white/80 uppercase">
               {tx('editor.field.x')}
             </label>
             <input
               type="number"
               value={mouseX}
-              onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
+              onChange={(event) =>
+                onUpdatePayload(node.id, {
+                  x: nonNegativeIntFromInput(event.target.value, 0)
+                })
+              }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -216,7 +253,11 @@ function ActionBlock({
             <input
               type="number"
               value={mouseY}
-              onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
+              onChange={(event) =>
+                onUpdatePayload(node.id, {
+                  y: nonNegativeIntFromInput(event.target.value, 0)
+                })
+              }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -230,6 +271,28 @@ function ActionBlock({
               <option value="RIGHT">{tx('editor.mouseButton.RIGHT')}</option>
               <option value="MIDDLE">{tx('editor.mouseButton.MIDDLE')}</option>
             </select>
+            <button
+              type="button"
+              onClick={() => {
+                if (isTargetedByMousePicker && isMousePickerActive) {
+                  onStopMousePicker()
+                  return
+                }
+
+                onStartMousePicker(node.id)
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              className={`h-8 rounded border px-2 text-xs font-semibold tracking-[0.08em] uppercase transition ${isTargetedByMousePicker && isMousePickerActive ? 'border-[rgb(var(--kb-accent-rgb))] bg-[rgb(var(--kb-accent-rgb)/0.2)] text-white' : 'border-white/30 bg-(--kb-node-input-bg) text-white/90 hover:border-white/50 hover:text-white'}`}
+            >
+              {isTargetedByMousePicker && isMousePickerActive
+                ? tx('editor.mousePicker.stop')
+                : tx('editor.mousePicker.pick')}
+            </button>
+            {hasMousePreview ? (
+              <span className="font-mono text-xs text-white/70">
+                {tx('editor.mousePicker.preview')}: {mousePickerPreview.x}, {mousePickerPreview.y}
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -244,7 +307,7 @@ function ActionBlock({
               value={frequencyMs}
               onChange={(event) =>
                 onUpdatePayload(node.id, {
-                  frequencyMs: Math.max(1, Number(event.target.value) || 1)
+                  frequencyMs: positiveIntFromInput(event.target.value, 1)
                 })
               }
               onPointerDown={(event) => event.stopPropagation()}
@@ -257,10 +320,10 @@ function ActionBlock({
             <input
               type="number"
               min={1}
-              value={waitMs}
+              value={timedDurationMs}
               onChange={(event) =>
                 onUpdatePayload(node.id, {
-                  durationMs: Math.max(1, Number(event.target.value) || 1)
+                  durationMs: positiveIntFromInput(event.target.value, 1)
                 })
               }
               onPointerDown={(event) => event.stopPropagation()}
@@ -291,7 +354,7 @@ function ActionBlock({
               value={frequencyMs}
               onChange={(event) =>
                 onUpdatePayload(node.id, {
-                  frequencyMs: Math.max(1, Number(event.target.value) || 1)
+                  frequencyMs: positiveIntFromInput(event.target.value, 1)
                 })
               }
               onPointerDown={(event) => event.stopPropagation()}
@@ -319,7 +382,11 @@ function ActionBlock({
             <input
               type="number"
               value={mouseX}
-              onChange={(event) => onUpdatePayload(node.id, { x: Number(event.target.value) || 0 })}
+              onChange={(event) =>
+                onUpdatePayload(node.id, {
+                  x: nonNegativeIntFromInput(event.target.value, 0)
+                })
+              }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -329,7 +396,11 @@ function ActionBlock({
             <input
               type="number"
               value={mouseY}
-              onChange={(event) => onUpdatePayload(node.id, { y: Number(event.target.value) || 0 })}
+              onChange={(event) =>
+                onUpdatePayload(node.id, {
+                  y: nonNegativeIntFromInput(event.target.value, 0)
+                })
+              }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-20 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
@@ -339,17 +410,45 @@ function ActionBlock({
             <input
               type="number"
               min={1}
-              value={waitMs}
+              value={moveDurationMs}
               onChange={(event) =>
                 onUpdatePayload(node.id, {
-                  durationMs: Math.max(1, Number(event.target.value) || 1)
+                  durationMs: positiveIntFromInput(event.target.value, 1)
                 })
               }
               onPointerDown={(event) => event.stopPropagation()}
               className="h-8 w-24 rounded border border-white/20 bg-(--kb-node-input-bg) px-2 text-sm text-white outline-none focus:border-white/40"
             />
             <span className="text-xs font-semibold text-white/55">ms</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (isTargetedByMousePicker && isMousePickerActive) {
+                  onStopMousePicker()
+                  return
+                }
+
+                onStartMousePicker(node.id)
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              className={`h-8 rounded border px-2 text-xs font-semibold tracking-[0.08em] uppercase transition ${isTargetedByMousePicker && isMousePickerActive ? 'border-[rgb(var(--kb-accent-rgb))] bg-[rgb(var(--kb-accent-rgb)/0.2)] text-white' : 'border-white/30 bg-(--kb-node-input-bg) text-white/90 hover:border-white/50 hover:text-white'}`}
+            >
+              {isTargetedByMousePicker && isMousePickerActive
+                ? tx('editor.mousePicker.stop')
+                : tx('editor.mousePicker.pick')}
+            </button>
+            {hasMousePreview ? (
+              <span className="font-mono text-xs text-white/70">
+                {tx('editor.mousePicker.preview')}: {mousePickerPreview.x}, {mousePickerPreview.y}
+              </span>
+            ) : null}
           </div>
+        ) : null}
+
+        {supportsMousePicker && isTargetedByMousePicker && isMousePickerActive ? (
+          <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-white/70 uppercase">
+            {tx('editor.mousePicker.picking')}
+          </p>
         ) : null}
 
         {node.type === 'REPEAT' ? (
@@ -387,7 +486,10 @@ const areEqual = (prev: ActionBlockProps, next: ActionBlockProps): boolean => {
     prev.isRecordingShortcut === next.isRecordingShortcut &&
     prev.pressedPreview === next.pressedPreview &&
     prev.highlightTopNotch === next.highlightTopNotch &&
-    prev.highlightBottomNotch === next.highlightBottomNotch
+    prev.highlightBottomNotch === next.highlightBottomNotch &&
+    prev.mousePickerTargetNodeId === next.mousePickerTargetNodeId &&
+    prev.mousePickerPreview === next.mousePickerPreview &&
+    prev.isMousePickerActive === next.isMousePickerActive
   )
 }
 

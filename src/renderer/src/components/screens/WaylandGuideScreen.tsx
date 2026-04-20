@@ -10,18 +10,18 @@ function WaylandGuideScreen(): React.JSX.Element {
 
   return (
     <section className="mx-auto w-full max-w-4xl space-y-6 py-2" data-testid="wayland-guide-screen">
-      <header className="rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-6">
-        <h2 className="text-2xl font-semibold text-[var(--kb-text-main)]">
+      <header className="rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-6">
+        <h2 className="text-2xl font-semibold text-(--kb-text-main)">
           {tx('wayland.guide.title')}
         </h2>
-        <p className="mt-2 text-sm text-[var(--kb-text-muted)]">{tx('wayland.guide.subtitle')}</p>
+        <p className="mt-2 text-sm text-(--kb-text-muted)">{tx('wayland.guide.subtitle')}</p>
       </header>
 
-      <article className="rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-6">
-        <h3 className="text-sm font-semibold tracking-[0.1em] text-[var(--kb-text-muted)] uppercase">
+      <article className="rounded-xl border border-(--kb-border) bg-(--kb-bg-panel) p-6">
+        <h3 className="text-sm font-semibold tracking-[0.1em] text-(--kb-text-muted) uppercase">
           {tx('wayland.guide.stepsTitle')}
         </h3>
-        <ol className="mt-4 space-y-3 text-sm text-[var(--kb-text-main)]">
+        <ol className="mt-4 space-y-3 text-sm text-(--kb-text-main)">
           <li>{tx('wayland.guide.steps.step1')}</li>
           <li>{tx('wayland.guide.steps.step2')}</li>
           <li>{tx('wayland.guide.steps.step3')}</li>

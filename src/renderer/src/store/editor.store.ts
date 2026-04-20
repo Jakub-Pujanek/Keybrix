@@ -22,6 +22,9 @@ type EditorState = {
   recordingNodeId: string | null
   heldKeys: string[]
   comboKeys: string[]
+  mousePickerTargetNodeId: string | null
+  mousePickerPreview: { x: number; y: number } | null
+  isMousePickerActive: boolean
   loadEditorMacro: (macroId?: string) => Promise<void>
   setMacroTitle: (nextTitle: string) => void
   addNode: (type: EditorBlockType, position?: { x: number; y: number }) => void
@@ -39,6 +42,26 @@ type EditorState = {
   handleShortcutKeyUp: (event: KeyboardEvent) => Promise<void>
   saveMacroFromEditor: () => Promise<boolean>
   testRunMacro: (context?: { attemptId?: string }) => Promise<ManualRunResult>
+  stopTestRunMacro: (context?: { attemptId?: string }) => Promise<ManualRunResult>
+  startMousePicker: (nodeId: string) => Promise<void>
+  stopMousePicker: () => Promise<void>
+  clearMousePickerPreview: () => void
+}
+
+let mousePickerPreviewUnsubscribe: (() => void) | null = null
+let mousePickerCoordinateUnsubscribe: (() => void) | null = null
+
+const ensureMousePickerBridge = (
+  onPreview: (payload: { x: number; y: number; isActive: boolean }) => void,
+  onSelected: (payload: { x: number; y: number }) => void
+): void => {
+  if (!mousePickerPreviewUnsubscribe) {
+    mousePickerPreviewUnsubscribe = window.api.mousePicker.onPreviewUpdate(onPreview)
+  }
+
+  if (!mousePickerCoordinateUnsubscribe) {
+    mousePickerCoordinateUnsubscribe = window.api.mousePicker.onCoordinateSelected(onSelected)
+  }
 }
 
 const blockTitleByType: Record<EditorBlockType, string> = {
@@ -290,6 +313,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   recordingNodeId: null,
   heldKeys: [],
   comboKeys: [],
+  mousePickerTargetNodeId: null,
+  mousePickerPreview: null,
+  isMousePickerActive: false,
 
   loadEditorMacro: async (macroId) => {
     const selected = macroId ? await window.api.macros.getById(macroId) : await firstMacro()
@@ -640,5 +666,90 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         debugMessage
       }
     }
+  },
+
+  stopTestRunMacro: async (context) => {
+    const { activeMacroId } = get()
+    if (!activeMacroId) {
+      return {
+        runId: globalThis.crypto.randomUUID(),
+        success: false,
+        reasonCode: 'MACRO_NOT_FOUND'
+      }
+    }
+
+    return await window.api.macros.stop(activeMacroId, {
+      attemptId: context?.attemptId
+    })
+  },
+
+  startMousePicker: async (nodeId) => {
+    ensureMousePickerBridge(
+      (payload) => {
+        set({
+          mousePickerPreview: {
+            x: payload.x,
+            y: payload.y
+          },
+          isMousePickerActive: payload.isActive
+        })
+      },
+      (point) => {
+        set((state) => {
+          if (!state.mousePickerTargetNodeId) {
+            return {
+              isMousePickerActive: false
+            }
+          }
+
+          return {
+            nodes: state.nodes.map((node) =>
+              node.id === state.mousePickerTargetNodeId
+                ? {
+                    ...node,
+                    payload: {
+                      ...node.payload,
+                      x: point.x,
+                      y: point.y
+                    }
+                  }
+                : node
+            ),
+            mousePickerTargetNodeId: null,
+            isMousePickerActive: false
+          }
+        })
+      }
+    )
+
+    set({
+      mousePickerTargetNodeId: nodeId,
+      isMousePickerActive: true
+    })
+
+    const started = await window.api.mousePicker.start()
+    if (!started) {
+      set({
+        mousePickerTargetNodeId: null,
+        isMousePickerActive: false
+      })
+    }
+  },
+
+  stopMousePicker: async () => {
+    try {
+      await window.api.mousePicker.stop()
+    } finally {
+      set({
+        mousePickerTargetNodeId: null,
+        isMousePickerActive: false
+      })
+    }
+  },
+
+  clearMousePickerPreview: () => {
+    set({
+      mousePickerPreview: null
+    })
   }
 }))

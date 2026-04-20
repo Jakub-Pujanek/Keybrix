@@ -39,27 +39,27 @@ function CanvasControls({
       <Button
         variant="icon"
         onClick={onZoomIn}
-        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
+        className="h-10 w-10 rounded-lg bg-(--kb-bg-surface) text-(--kb-text-main)"
       >
         <Plus className="h-4 w-4" />
       </Button>
       <Button
         variant="icon"
         onClick={onZoomOut}
-        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
+        className="h-10 w-10 rounded-lg bg-(--kb-bg-surface) text-(--kb-text-main)"
       >
         <Minus className="h-4 w-4" />
       </Button>
       <Button
         variant="icon"
         onClick={() => setIsSliderOpen((current) => !current)}
-        className="h-10 w-10 rounded-lg bg-[var(--kb-bg-surface)] text-[var(--kb-text-main)]"
+        className="h-10 w-10 rounded-lg bg-(--kb-bg-surface) text-(--kb-text-main)"
       >
         <Settings2 className="h-4 w-4" />
       </Button>
       {isSliderOpen ? (
-        <div className="absolute right-12 bottom-12 w-36 rounded-lg border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-3 shadow-xl backdrop-blur-sm">
-          <p className="mb-2 text-[10px] font-semibold tracking-[0.1em] text-[var(--kb-text-muted)] uppercase">
+        <div className="absolute right-12 bottom-12 w-36 rounded-lg border border-(--kb-border) bg-(--kb-bg-panel) p-3 shadow-xl backdrop-blur-sm">
+          <p className="mb-2 text-[10px] font-semibold tracking-[0.1em] text-(--kb-text-muted) uppercase">
             {tx('editor.canvas.zoom')}
           </p>
           <input
@@ -73,7 +73,7 @@ function CanvasControls({
           />
         </div>
       ) : null}
-      <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-[var(--kb-bg-surface)] text-xs text-[var(--kb-text-muted)]">
+      <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-(--kb-bg-surface) text-xs text-(--kb-text-muted)">
         <input
           value={zoomInput}
           onChange={(event) => setZoomInput(event.target.value.replace(/[^0-9]/g, ''))}

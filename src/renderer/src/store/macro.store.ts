@@ -10,6 +10,7 @@ type MacroState = {
   deleteMacro: (id: string) => Promise<boolean>
   setMacroActive: (id: string, isActive: boolean) => Promise<void>
   runMacroManually: (id: string) => Promise<void>
+  stopMacroManually: (id: string) => Promise<void>
   subscribeMacroStatus: () => () => void
 }
 
@@ -30,6 +31,23 @@ const buildInitialShortcut = (macros: Macro[]): string => {
   return `CTRL+ALT+${Date.now().toString().slice(-4)}`
 }
 
+const mergeMacrosPreservingSwitchState = (incoming: Macro[], existing: Macro[]): Macro[] => {
+  const activeById = new Map(existing.map((macro) => [macro.id, macro.isActive]))
+
+  return incoming.map((macro) => {
+    const preservedActive = activeById.get(macro.id)
+
+    if (preservedActive === undefined) {
+      return macro
+    }
+
+    return {
+      ...macro,
+      isActive: preservedActive
+    }
+  })
+}
+
 export const useMacroStore = create<MacroState>((set, get) => ({
   macros: [],
   isLoading: false,
@@ -39,7 +57,11 @@ export const useMacroStore = create<MacroState>((set, get) => ({
 
     try {
       const macros = await window.api.macros.getAll()
-      set({ macros, isLoading: false, loadError: null })
+      set((state) => ({
+        macros: mergeMacrosPreservingSwitchState(macros, state.macros),
+        isLoading: false,
+        loadError: null
+      }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load macros.'
       console.error('[macro.store] loadMacros failed:', error)
@@ -110,6 +132,9 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     await window.api.macros.runManually(id)
     await get().loadMacros()
   },
+  stopMacroManually: async (id) => {
+    await window.api.macros.stop(id)
+  },
   subscribeMacroStatus: () => {
     const applyStatus = (id: string, newStatus: MacroStatus): void => {
       set((state) => ({
@@ -117,8 +142,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
           macro.id === id
             ? {
                 ...macro,
-                status: newStatus,
-                isActive: newStatus === 'RUNNING' || newStatus === 'ACTIVE'
+                status: newStatus
               }
             : macro
         )

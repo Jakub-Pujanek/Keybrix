@@ -14,7 +14,12 @@ type MacroStatusListener = (event: { id: string; newStatus: Macro['status'] }) =
 export type MacroServiceRunResult = {
   runId: string
   success: boolean
-  reasonCode: MacroRunnerReasonCode | 'ALREADY_RUNNING' | 'MACRO_NOT_FOUND' | 'GLOBAL_MASTER_OFF'
+  reasonCode:
+    | MacroRunnerReasonCode
+    | 'ALREADY_RUNNING'
+    | 'NOT_RUNNING'
+    | 'MACRO_NOT_FOUND'
+    | 'GLOBAL_MASTER_OFF'
 }
 
 export class MacroService {
@@ -273,6 +278,26 @@ export class MacroService {
     }
   }
 
+  reconcileRuntimeStatuses(): void {
+    for (const macro of this.getAll()) {
+      const expectedStatus: Macro['status'] = macro.isActive ? 'ACTIVE' : 'IDLE'
+      if (macro.status === expectedStatus) continue
+
+      const updated = macroRepository.updateRuntimeState(macro.id, expectedStatus)
+      if (!updated) continue
+
+      this.emitStatus({
+        id: updated.id,
+        newStatus: updated.status
+      })
+
+      logsService.append({
+        level: 'INFO',
+        message: `Runtime status reconciled for '${updated.name}' (${macro.status} -> ${updated.status}).`
+      })
+    }
+  }
+
   async run(id: string): Promise<MacroServiceRunResult> {
     const runId = globalThis.crypto.randomUUID()
     logsService.append({
@@ -434,6 +459,39 @@ export class MacroService {
       message: `Shortcut trigger requested start for macro '${id}'.`
     })
     return this.run(id)
+  }
+
+  stop(id: string): MacroServiceRunResult {
+    const runId = globalThis.crypto.randomUUID()
+    const macro = macroRepository.getById(id)
+
+    if (!macro) {
+      logsService.append({
+        level: 'WARN',
+        runId,
+        message: `Stop request failed. Macro '${id}' was not found.`
+      })
+      return { runId, success: false, reasonCode: 'MACRO_NOT_FOUND' }
+    }
+
+    if (!this.activeRuns.has(id)) {
+      logsService.append({
+        level: 'INFO',
+        runId,
+        message: `Stop request ignored for '${macro.name}' because it is not running.`
+      })
+      return { runId, success: false, reasonCode: 'NOT_RUNNING' }
+    }
+
+    this.cancelledRuns.add(id)
+
+    logsService.append({
+      level: 'INFO',
+      runId,
+      message: `Stop request accepted for '${macro.name}'.`
+    })
+
+    return { runId, success: true, reasonCode: 'ABORTED' }
   }
 
   reserveShortcut(input: {

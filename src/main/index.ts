@@ -6,6 +6,8 @@ import {
   ActivityLogSchema,
   DashboardStatsSchema,
   MacroStatusChangeEventSchema,
+  MousePickerPointSchema,
+  MousePickerPreviewSchema,
   SystemStatusSchema,
   type AppSettings,
   IPC_CHANNELS,
@@ -35,6 +37,7 @@ import {
   detectRuntimeSessionDiagnostics,
   readSessionEnvSnapshot
 } from './services/session-detection.service'
+import { mousePickerService } from './services/mouse-picker.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
@@ -460,6 +463,30 @@ const registerIpcHandlers = (): void => {
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.mousePicker.start, () => {
+    try {
+      return mousePickerService.start()
+    } catch (error) {
+      structuredLogger.error('Mouse picker start failed.', {
+        scope: 'ipc.mousePicker.start',
+        reason: getErrorMessage(error)
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.mousePicker.stop, () => {
+    try {
+      return mousePickerService.stop()
+    } catch (error) {
+      structuredLogger.error('Mouse picker stop failed.', {
+        scope: 'ipc.mousePicker.stop',
+        reason: getErrorMessage(error)
+      })
+      throw error
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.macros.run, async (_, input) => {
     const correlationId = globalThis.crypto.randomUUID()
     const fallbackRunId = globalThis.crypto.randomUUID()
@@ -557,6 +584,85 @@ const registerIpcHandlers = (): void => {
       })
     }
   })
+
+  ipcMain.handle(IPC_CHANNELS.macros.stop, async (_, input) => {
+    const correlationId = globalThis.crypto.randomUUID()
+    const fallbackRunId = globalThis.crypto.randomUUID()
+    const parsedRequest =
+      typeof input === 'string'
+        ? RunMacroRequestSchema.safeParse({ id: input })
+        : RunMacroRequestSchema.safeParse(input)
+
+    const id = parsedRequest.success ? parsedRequest.data.id : null
+    const attemptId = parsedRequest.success ? parsedRequest.data.attemptId : undefined
+
+    try {
+      if (!id) {
+        return ManualRunResultSchema.parse({
+          runId: fallbackRunId,
+          success: false,
+          reasonCode: 'INVALID_MACRO_ID'
+        })
+      }
+
+      const result = macroService.stop(id)
+
+      if (!result.success) {
+        logsService.append({
+          level: 'INFO',
+          runId: result.runId,
+          message: `IPC stop response for '${id}': success=false, reason='${result.reasonCode}'${attemptId ? `, attempt='${attemptId}'` : ''}.`
+        })
+
+        structuredLogger.audit({
+          action: 'MACRO_RUN_BLOCKED',
+          targetId: id,
+          correlationId,
+          reason: result.reasonCode.toLowerCase()
+        })
+
+        return ManualRunResultSchema.parse({
+          runId: result.runId,
+          success: false,
+          reasonCode: result.reasonCode
+        })
+      }
+
+      logsService.append({
+        level: 'INFO',
+        runId: result.runId,
+        message: `IPC stop accepted for '${id}'${attemptId ? `, attempt='${attemptId}'` : ''}.`
+      })
+
+      return ManualRunResultSchema.parse({
+        runId: result.runId,
+        success: true,
+        reasonCode: 'ABORTED'
+      })
+    } catch (error) {
+      logsService.append({
+        level: 'ERR',
+        runId: fallbackRunId,
+        message: `IPC stop handler failed for '${String(id)}': ${getErrorMessage(error)}${attemptId ? ` [attempt=${attemptId}]` : ''}.`
+      })
+
+      structuredLogger.error('Macros stop failed.', {
+        scope: 'ipc.macros.stop',
+        correlationId,
+        reason: getErrorMessage(error),
+        details: {
+          id,
+          attemptId
+        }
+      })
+
+      return ManualRunResultSchema.parse({
+        runId: fallbackRunId,
+        success: false,
+        reasonCode: 'IPC_ERROR'
+      })
+    }
+  })
 }
 
 app.whenReady().then(() => {
@@ -568,6 +674,7 @@ app.whenReady().then(() => {
   settingsService.applyLaunchAtStartup(getSettings().launchAtStartup)
   settingsService.applyThemeMode(getSettings().themeMode)
   macroService.bootstrapShortcuts()
+  macroService.reconcileRuntimeStatuses()
 
   runtimeDisposers.push(
     logsService.onNewLog((log) => {
@@ -590,6 +697,20 @@ app.whenReady().then(() => {
     })
   )
 
+  runtimeDisposers.push(
+    mousePickerService.onPreviewUpdate((preview) => {
+      const parsed = MousePickerPreviewSchema.parse(preview)
+      broadcastToRenderers(IPC_CHANNELS.mousePicker.previewUpdate, parsed)
+    })
+  )
+
+  runtimeDisposers.push(
+    mousePickerService.onCoordinateSelected((point) => {
+      const parsed = MousePickerPointSchema.parse(point)
+      broadcastToRenderers(IPC_CHANNELS.mousePicker.coordinateSelected, parsed)
+    })
+  )
+
   systemHealthService.start()
   registerIpcHandlers()
   createWindow()
@@ -608,6 +729,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   isQuitting = true
   systemHealthService.stop()
+  mousePickerService.dispose()
   shortcutManager.dispose()
   for (const dispose of runtimeDisposers.splice(0)) {
     dispose()

@@ -103,6 +103,12 @@
       "RIGHT": "RIGHT",
       "MIDDLE": "MIDDLE"
     },
+    "mousePicker": {
+      "pick": "Pick",
+      "stop": "Stop",
+      "picking": "Choose cursor point and finish pick mode",
+      "preview": "Preview"
+    },
     "infiniteLoop": {
       "runsForever": "Runs forever"
     },

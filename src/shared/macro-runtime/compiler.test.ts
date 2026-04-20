@@ -169,10 +169,7 @@ describe('compileNodesToRuntimeCommands', () => {
     const infinitePayload = commands[4]?.payload as { commands?: RuntimeCommand[] }
 
     expect(repeatPayload.commands?.map((command) => command.type)).toEqual(['TYPE_TEXT', 'WAIT'])
-    expect(infinitePayload.commands?.map((command) => command.type)).toEqual([
-      'TYPE_TEXT',
-      'WAIT'
-    ])
+    expect(infinitePayload.commands?.map((command) => command.type)).toEqual(['TYPE_TEXT', 'WAIT'])
   })
 
   it('normalizes payloads for new block types and single-key press', () => {
@@ -252,6 +249,72 @@ describe('compileNodesToRuntimeCommands', () => {
     expect(commands[6]).toEqual({
       type: 'MOVE_MOUSE_DURATION',
       payload: { x: 10, y: 20, durationMs: 1 }
+    })
+  })
+
+  it('sanitizes non-finite numeric payload values for mouse commands', () => {
+    const commands = compileNodesToRuntimeCommands([
+      {
+        id: 's1',
+        type: 'START',
+        x: 0,
+        y: 0,
+        nextId: 'c1',
+        payload: {}
+      },
+      {
+        id: 'c1',
+        type: 'MOUSE_CLICK',
+        x: 0,
+        y: 0,
+        nextId: 'a1',
+        payload: { x: Number.NaN, y: Number.POSITIVE_INFINITY, button: 'LEFT' }
+      },
+      {
+        id: 'a1',
+        type: 'AUTOCLICKER_TIMED',
+        x: 0,
+        y: 0,
+        nextId: 'a2',
+        payload: {
+          frequencyMs: Number.POSITIVE_INFINITY,
+          durationMs: Number.NaN,
+          button: 'MIDDLE'
+        }
+      },
+      {
+        id: 'a2',
+        type: 'AUTOCLICKER_INFINITE',
+        x: 0,
+        y: 0,
+        nextId: 'm1',
+        payload: { frequencyMs: Number.NaN }
+      },
+      {
+        id: 'm1',
+        type: 'MOVE_MOUSE_DURATION',
+        x: 0,
+        y: 0,
+        nextId: null,
+        payload: { x: Number.POSITIVE_INFINITY, y: Number.NaN, durationMs: Number.NaN }
+      }
+    ])
+
+    expect(commands[1]).toEqual({
+      type: 'MOUSE_CLICK',
+      payload: { button: 'LEFT' }
+    })
+    expect(commands[2]).toEqual({
+      type: 'AUTOCLICKER_TIMED',
+      payload: { button: 'MIDDLE', frequencyMs: 100, durationMs: 1000 }
+    })
+    expect(commands[3]).toEqual({
+      type: 'AUTOCLICKER_INFINITE',
+      payload: { frequencyMs: 100 }
+    })
+    expect(commands[4]).toEqual({
+      type: 'MOVE_MOUSE_DURATION',
+      payload: { durationMs: 250 }
     })
   })
 })

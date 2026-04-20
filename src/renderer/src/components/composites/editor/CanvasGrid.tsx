@@ -25,6 +25,11 @@ type CanvasGridProps = {
   onStartShortcutRecording: (nodeId: string, nodeType: EditorNode['type']) => void
   onCancelShortcutRecording: () => void
   onUpdatePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
+  mousePickerTargetNodeId: string | null
+  mousePickerPreview: { x: number; y: number } | null
+  isMousePickerActive: boolean
+  onStartMousePicker: (nodeId: string) => void
+  onStopMousePicker: () => void
 }
 
 function CanvasGrid({
@@ -43,7 +48,12 @@ function CanvasGrid({
   pressedPreview,
   onStartShortcutRecording,
   onCancelShortcutRecording,
-  onUpdatePayload
+  onUpdatePayload,
+  mousePickerTargetNodeId,
+  mousePickerPreview,
+  isMousePickerActive,
+  onStartMousePicker,
+  onStopMousePicker
 }: CanvasGridProps): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [isPanningCanvas, setIsPanningCanvas] = useState(false)
@@ -288,6 +298,11 @@ function CanvasGrid({
                 onStartShortcutRecording={onStartShortcutRecording}
                 onCancelShortcutRecording={onCancelShortcutRecording}
                 onUpdatePayload={handleUpdatePayload}
+                mousePickerTargetNodeId={mousePickerTargetNodeId}
+                mousePickerPreview={mousePickerPreview}
+                isMousePickerActive={isMousePickerActive}
+                onStartMousePicker={onStartMousePicker}
+                onStopMousePicker={onStopMousePicker}
               />
             </div>
           )

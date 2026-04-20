@@ -298,6 +298,58 @@ describe('MacroService', () => {
     expect(firstTriggerResult.reasonCode).toBe('ABORTED')
   })
 
+  it('stops running macro via explicit stop API', async () => {
+    const { macroService } = await import('./macro.service')
+    const { macroRunner } = await import('../macro-runner')
+    const deferred = createDeferred<{ success: boolean; reasonCode: 'SUCCESS' }>()
+
+    vi.mocked(macroRunner.runMacro).mockReturnValueOnce(deferred.promise)
+
+    const saved = macroService.save({
+      name: 'Explicit Stop',
+      shortcut: 'CTRL+SHIFT+S',
+      isActive: true,
+      status: 'ACTIVE',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    const runPromise = macroService.run(saved.id)
+    const stopResult = macroService.stop(saved.id)
+
+    deferred.resolve({ success: true, reasonCode: 'SUCCESS' })
+    const runResult = await runPromise
+
+    expect(stopResult.success).toBe(true)
+    expect(stopResult.reasonCode).toBe('ABORTED')
+    expect(runResult.success).toBe(false)
+    expect(runResult.reasonCode).toBe('ABORTED')
+  })
+
+  it('reconciles stale runtime status on startup', async () => {
+    const { macroService } = await import('./macro.service')
+
+    const activeMacro = macroService.save({
+      name: 'Startup Active',
+      shortcut: 'CTRL+SHIFT+A',
+      isActive: true,
+      status: 'IDLE',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    const idleMacro = macroService.save({
+      name: 'Startup Idle',
+      shortcut: 'CTRL+SHIFT+I',
+      isActive: false,
+      status: 'RUNNING',
+      blocksJson: { commands: [{ type: 'WAIT', ms: 0 }] }
+    })
+
+    macroService.reconcileRuntimeStatuses()
+
+    expect(macroService.getById(activeMacro.id)?.status).toBe('ACTIVE')
+    expect(macroService.getById(idleMacro.id)?.status).toBe('IDLE')
+  })
+
   it('saves macro as disabled when global shortcut registration fails', async () => {
     const { macroService } = await import('./macro.service')
 

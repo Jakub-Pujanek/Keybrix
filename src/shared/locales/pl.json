@@ -103,6 +103,12 @@
       "RIGHT": "PRAWY",
       "MIDDLE": "ŚRODKOWY"
     },
+    "mousePicker": {
+      "pick": "Pobierz",
+      "stop": "Zatrzymaj",
+      "picking": "Wybierz punkt kursorem i zakoncz tryb wyboru",
+      "preview": "Podglad"
+    },
     "infiniteLoop": {
       "runsForever": "Uruchomione bez końca"
     },

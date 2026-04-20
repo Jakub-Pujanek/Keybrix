@@ -33,6 +33,7 @@ function DashboardScreen(): React.JSX.Element {
   const deleteMacro = useMacroStore((state) => state.deleteMacro)
   const setMacroActive = useMacroStore((state) => state.setMacroActive)
   const runMacroManually = useMacroStore((state) => state.runMacroManually)
+  const stopMacroManually = useMacroStore((state) => state.stopMacroManually)
   const subscribeMacroStatus = useMacroStore((state) => state.subscribeMacroStatus)
 
   const loadEditorMacro = useEditorStore((state) => state.loadEditorMacro)
@@ -90,7 +91,7 @@ function DashboardScreen(): React.JSX.Element {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {isMacrosLoading ? (
-          <article className="grid min-h-[220px] place-items-center rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] px-6 py-8 text-center text-[var(--kb-text-muted)]">
+          <article className="grid min-h-55 place-items-center rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) px-6 py-8 text-center text-(--kb-text-muted)">
             <p className="text-sm font-medium">Loading macros...</p>
           </article>
         ) : null}
@@ -112,14 +113,14 @@ function DashboardScreen(): React.JSX.Element {
         ) : null}
 
         {!isMacrosLoading && !macrosLoadError && macros.length === 0 ? (
-          <article className="rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] px-5 py-5 text-[var(--kb-text-muted)]">
+          <article className="rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) px-5 py-5 text-(--kb-text-muted)">
             <p className="text-sm font-semibold tracking-[0.08em] uppercase">No macros yet</p>
             <p className="mt-2 text-sm/6">
               Macro list is empty. Use the create tile to add one or refresh the screen.
             </p>
             <button
               type="button"
-              className="mt-4 rounded-md border border-[var(--kb-border)] bg-[var(--kb-bg-overlay)] px-3 py-1.5 text-xs font-semibold tracking-[0.08em] uppercase text-[var(--kb-text-main)] transition hover:brightness-110"
+              className="mt-4 rounded-md border border-(--kb-border) bg-(--kb-bg-overlay) px-3 py-1.5 text-xs font-semibold tracking-[0.08em] uppercase text-(--kb-text-main) transition hover:brightness-110"
               onClick={() => {
                 void loadMacros()
               }}
@@ -150,6 +151,12 @@ function DashboardScreen(): React.JSX.Element {
                 await loadDashboardStats()
               })()
             }}
+            onStop={(id) => {
+              void (async () => {
+                await stopMacroManually(id)
+                await loadDashboardStats()
+              })()
+            }}
             onEdit={(id) => {
               void (async () => {
                 await loadEditorMacro(id)
@@ -171,13 +178,13 @@ function DashboardScreen(): React.JSX.Element {
           />
         ))}
 
-        <article className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-[var(--kb-border)] bg-[var(--kb-bg-surface-strong)]">
+        <article className="grid min-h-70 place-items-center rounded-xl border border-dashed border-(--kb-border) bg-(--kb-bg-surface-strong)">
           <button
             type="button"
             onClick={openCreateMacroModal}
-            className="flex flex-col items-center gap-4 rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-overlay)] px-8 py-8 text-[var(--kb-text-muted)] transition hover:brightness-110"
+            className="flex flex-col items-center gap-4 rounded-xl border border-(--kb-border) bg-(--kb-bg-overlay) px-8 py-8 text-(--kb-text-muted) transition hover:brightness-110"
           >
-            <span className="grid h-12 w-12 place-items-center rounded-xl border border-[var(--kb-border)] text-[var(--kb-text-main)]">
+            <span className="grid h-12 w-12 place-items-center rounded-xl border border-(--kb-border) text-(--kb-text-main)">
               <Plus className="h-6 w-6" />
             </span>
             <span className="text-xs font-semibold tracking-[0.16em] uppercase">

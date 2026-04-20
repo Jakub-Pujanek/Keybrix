@@ -9,8 +9,19 @@ const { pressKeyMock, releaseKeyMock, typeMock, setPositionMock, clickMock } = v
   clickMock: vi.fn(async () => undefined)
 }))
 
+const keyboardConfig = vi.hoisted(() => ({
+  autoDelayMs: 300
+}))
+
+const buttonValues = vi.hoisted(() => ({
+  LEFT: 0,
+  RIGHT: 1,
+  MIDDLE: 2
+}))
+
 vi.mock('@nut-tree-fork/nut-js', () => ({
   keyboard: {
+    config: keyboardConfig,
     pressKey: pressKeyMock,
     releaseKey: releaseKeyMock,
     type: typeMock
@@ -19,11 +30,7 @@ vi.mock('@nut-tree-fork/nut-js', () => ({
     setPosition: setPositionMock,
     click: clickMock
   },
-  Button: {
-    LEFT: 'LEFT',
-    RIGHT: 'RIGHT',
-    MIDDLE: 'MIDDLE'
-  },
+  Button: buttonValues,
   Key: {
     LeftControl: 'LeftControl',
     LeftShift: 'LeftShift',
@@ -52,6 +59,10 @@ describe('MacroRunner', () => {
     typeMock.mockClear()
     setPositionMock.mockClear()
     clickMock.mockClear()
+  })
+
+  it('forces keyboard auto delay to zero for low-latency command transitions', async () => {
+    expect(keyboardConfig.autoDelayMs).toBe(0)
   })
 
   it('treats malformed blocksJson as no-op run and succeeds', async () => {
@@ -166,6 +177,32 @@ describe('MacroRunner', () => {
 
     expect(result.success).toBe(false)
     expect(logs.some((entry) => entry.includes('compile errors'))).toBe(true)
+  })
+
+  it('fails MOUSE_CLICK with non-finite coordinates', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-invalid-mouse-click',
+        name: 'Invalid Mouse Click',
+        shortcut: 'CTRL+X',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'MOUSE_CLICK', payload: { x: Number.NaN, y: 10, button: 'LEFT' } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(false)
+    expect(setPositionMock).not.toHaveBeenCalled()
+    expect(clickMock).not.toHaveBeenCalled()
   })
 
   it('fails when nested REPEAT depth exceeds maximum', async () => {
@@ -296,6 +333,90 @@ describe('MacroRunner', () => {
     expect(setPositionMock).toHaveBeenCalled()
   })
 
+  it('applies safe fallback payload values for AUTOCLICKER_TIMED and MOVE_MOUSE_DURATION', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-mouse-fallbacks',
+        name: 'Mouse Fallbacks',
+        shortcut: 'CTRL+F',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            {
+              type: 'AUTOCLICKER_TIMED',
+              payload: {
+                button: 'LEFT',
+                durationMs: 1
+              }
+            },
+            {
+              type: 'MOVE_MOUSE_DURATION',
+              payload: {
+                x: 20.6,
+                y: 10.4
+              }
+            }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(true)
+    expect(clickMock).toHaveBeenCalledTimes(1)
+    expect(setPositionMock).toHaveBeenCalledTimes(1)
+
+    const targetPoint = setPositionMock.mock.calls[0]?.[0] as { x: number; y: number }
+    expect(targetPoint.x).toBe(21)
+    expect(targetPoint.y).toBe(10)
+  })
+
+  it('uses fallback frequency for AUTOCLICKER_INFINITE and stops on abort', async () => {
+    let checks = 0
+
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-infinite-fallback',
+        name: 'Infinite Fallback',
+        shortcut: 'CTRL+G',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            {
+              type: 'AUTOCLICKER_INFINITE',
+              payload: {
+                button: 'RIGHT'
+              }
+            }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: false
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true,
+      shouldAbort: () => {
+        checks += 1
+        return checks >= 3
+      }
+    })
+
+    expect(result.success).toBe(true)
+    expect(clickMock.mock.calls.length).toBeGreaterThanOrEqual(1)
+    expect(clickMock).toHaveBeenCalledWith(buttonValues.RIGHT)
+  })
+
   it('stops AUTOCLICKER_INFINITE when global master is disabled', async () => {
     const result = await macroRunner.runMacro({
       macro: {
@@ -318,6 +439,100 @@ describe('MacroRunner', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('returns COMMAND_ERROR with contextual log when MOUSE_CLICK click operation fails', async () => {
+    const logs: string[] = []
+    clickMock.mockRejectedValueOnce(new Error('native click failed'))
+
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-mouse-click-fail',
+        name: 'Mouse Click Fail',
+        shortcut: 'CTRL+M',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'MOUSE_CLICK', payload: { x: 15, y: 25, button: 'LEFT' } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: ({ message }) => {
+        logs.push(message)
+      },
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('COMMAND_ERROR')
+    expect(
+      logs.some((entry) =>
+        entry.includes("MOUSE_CLICK click with button 'LEFT' failed: native click failed")
+      )
+    ).toBe(true)
+  })
+
+  it('returns COMMAND_TIMEOUT when AUTOCLICKER_TIMED click reports timeout', async () => {
+    clickMock.mockRejectedValueOnce(
+      new Error("AUTOCLICKER_TIMED timed out after 2000ms while clicking 'LEFT'.")
+    )
+
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-autoclicker-timed-timeout',
+        name: 'Autoclicker Timed Timeout',
+        shortcut: 'CTRL+T',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [
+            {
+              type: 'AUTOCLICKER_TIMED',
+              payload: { button: 'LEFT', frequencyMs: 1, durationMs: 5 }
+            }
+          ]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('COMMAND_TIMEOUT')
+  })
+
+  it('accepts quoted button label in legacy mouse payloads', async () => {
+    const result = await macroRunner.runMacro({
+      macro: {
+        id: 'macro-quoted-button',
+        name: 'Quoted Button',
+        shortcut: 'CTRL+Q',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'MOUSE_CLICK', payload: { x: 30, y: 40, button: "'LEFT'" } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true
+    })
+
+    expect(result.success).toBe(true)
+    expect(clickMock).toHaveBeenCalledWith(buttonValues.LEFT)
   })
 
   it('runs INFINITE_LOOP nested commands until abort signal', async () => {
@@ -355,7 +570,9 @@ describe('MacroRunner', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(typeMock.mock.calls.filter((call) => call[0] === 'tick').length).toBeGreaterThanOrEqual(3)
+    expect(
+      typeMock.mock.calls.filter((call) => call.at(0) === 'tick').length
+    ).toBeGreaterThanOrEqual(3)
   })
 
   it('fails INFINITE_LOOP when nested command fails and stopOnError is enabled', async () => {

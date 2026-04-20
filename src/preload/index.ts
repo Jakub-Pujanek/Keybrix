@@ -6,6 +6,8 @@ import {
   DashboardStatsSchema,
   IPC_CHANNELS,
   ManualRunReasonCodeSchema,
+  MousePickerPointSchema,
+  MousePickerPreviewSchema,
   UpdateAppSettingsInputSchema,
   type ActivityLog,
   type SessionCheckResult,
@@ -438,6 +440,104 @@ const api: KeybrixApi = {
           debugMessage
         }
       }
+    },
+    stop: async (id, context) => {
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        return {
+          runId: globalThis.crypto.randomUUID(),
+          success: false,
+          reasonCode: 'INVALID_MACRO_ID',
+          debugMessage: 'stop request validation failed in preload bridge'
+        }
+      }
+
+      const request: { id: string; attemptId?: string } = {
+        id: id.trim()
+      }
+      if (typeof context?.attemptId === 'string' && context.attemptId.trim().length > 0) {
+        request.attemptId = context.attemptId.trim()
+      }
+
+      try {
+        const result = await ipcRenderer.invoke(IPC_CHANNELS.macros.stop, request)
+
+        if (isRecord(result)) {
+          const runIdCandidate = result['runId']
+          const successCandidate = result['success']
+          const reasonCandidate = result['reasonCode']
+          const debugMessageCandidate = result['debugMessage']
+
+          if (
+            typeof runIdCandidate === 'string' &&
+            runIdCandidate.trim().length > 0 &&
+            typeof successCandidate === 'boolean' &&
+            isManualRunReasonCode(reasonCandidate)
+          ) {
+            return {
+              runId: runIdCandidate,
+              success: successCandidate,
+              reasonCode: reasonCandidate,
+              ...(typeof debugMessageCandidate === 'string' && debugMessageCandidate.length > 0
+                ? { debugMessage: debugMessageCandidate }
+                : {})
+            }
+          }
+        }
+
+        if (isRecord(result)) {
+          const runIdCandidate = result['runId']
+          const successCandidate = result['success']
+          const reasonCandidate = result['reasonCode']
+
+          const runId =
+            typeof runIdCandidate === 'string' && runIdCandidate.trim().length > 0
+              ? runIdCandidate
+              : globalThis.crypto.randomUUID()
+
+          const success = successCandidate === true
+          const normalizedReason = isManualRunReasonCode(reasonCandidate)
+            ? reasonCandidate
+            : success
+              ? 'ABORTED'
+              : 'RUNNER_FAILED'
+
+          console.warn(
+            '[preload] macros.stop returned non-conforming payload; normalized result.',
+            {
+              id,
+              raw: result,
+              normalizedReason
+            }
+          )
+
+          return {
+            runId,
+            success,
+            reasonCode: normalizedReason
+          }
+        }
+
+        return {
+          runId: globalThis.crypto.randomUUID(),
+          success: false,
+          reasonCode: 'IPC_ERROR',
+          debugMessage: 'macros.stop returned non-object payload'
+        }
+      } catch (error) {
+        const debugMessage = error instanceof Error ? error.message : 'unknown ipc bridge error'
+        console.error('[preload] macros.stop bridge failure', {
+          id,
+          attemptId: context?.attemptId,
+          error,
+          debugMessage
+        })
+        return {
+          runId: globalThis.crypto.randomUUID(),
+          success: false,
+          reasonCode: 'IPC_ERROR',
+          debugMessage
+        }
+      }
     }
   },
   stats: {
@@ -481,6 +581,52 @@ const api: KeybrixApi = {
       ipcRenderer.on(IPC_CHANNELS.logs.newLog, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.logs.newLog, listener)
+      }
+    }
+  },
+  mousePicker: {
+    start: async () => {
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.mousePicker.start)
+      return result === true
+    },
+    stop: async () => {
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.mousePicker.stop)
+      return result === true
+    },
+    onPreviewUpdate: (callback) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        const parsed = MousePickerPreviewSchema.safeParse(payload)
+        if (!parsed.success) {
+          console.warn('[preload] mousePicker.onPreviewUpdate dropped malformed payload.', {
+            payload
+          })
+          return
+        }
+
+        callback(parsed.data)
+      }
+
+      ipcRenderer.on(IPC_CHANNELS.mousePicker.previewUpdate, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.mousePicker.previewUpdate, listener)
+      }
+    },
+    onCoordinateSelected: (callback) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        const parsed = MousePickerPointSchema.safeParse(payload)
+        if (!parsed.success) {
+          console.warn('[preload] mousePicker.onCoordinateSelected dropped malformed payload.', {
+            payload
+          })
+          return
+        }
+
+        callback(parsed.data)
+      }
+
+      ipcRenderer.on(IPC_CHANNELS.mousePicker.coordinateSelected, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.mousePicker.coordinateSelected, listener)
       }
     }
   },

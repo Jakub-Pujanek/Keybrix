@@ -6,8 +6,8 @@ type StatCardProps = {
 
 const accentMap = {
   blue: 'text-[rgb(var(--kb-accent-rgb))]',
-  orange: 'text-[var(--kb-accent-orange)]',
-  white: 'text-[var(--kb-text-main)]'
+  orange: 'text-(--kb-accent-orange)',
+  white: 'text-(--kb-text-main)'
 }
 
 function StatCard({ label, value, accent = 'white' }: StatCardProps): React.JSX.Element {
@@ -16,7 +16,7 @@ function StatCard({ label, value, accent = 'white' }: StatCardProps): React.JSX.
       data-testid="stat-card"
       className="min-h-24 rounded-lg border border-transparent bg-transparent"
     >
-      <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--kb-text-muted)] uppercase">
+      <p className="text-[11px] font-semibold tracking-[0.14em] text-(--kb-text-muted) uppercase">
         {label}
       </p>
       <p className={`mt-2 text-5xl font-bold leading-none ${accentMap[accent]}`}>{value}</p>

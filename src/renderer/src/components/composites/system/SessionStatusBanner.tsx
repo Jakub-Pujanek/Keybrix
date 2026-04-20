@@ -13,7 +13,7 @@ function SessionStatusBanner(): React.JSX.Element | null {
   const openWaylandGuide = useSessionStore((state) => state.openWaylandGuide)
   const consumeSuccessAutohide = useSessionStore((state) => state.consumeSuccessAutohide)
 
-  const showSuccess = typeof showSuccessUntil === 'number' && showSuccessUntil > Date.now()
+  const showSuccess = typeof showSuccessUntil === 'number'
 
   useEffect(() => {
     if (!showSuccessUntil) return
@@ -84,7 +84,7 @@ function SessionStatusBanner(): React.JSX.Element | null {
             }
 
   return (
-    <section className="pointer-events-none fixed right-4 bottom-4 left-4 z-[1500] md:left-24">
+    <section className="pointer-events-none fixed right-4 bottom-4 left-4 z-1500 md:left-24">
       <article
         className={`pointer-events-auto rounded-xl border px-4 py-3 shadow-[0_20px_45px_-26px_rgba(0,0,0,0.8)] backdrop-blur-sm ${appearance.wrapper}`}
       >

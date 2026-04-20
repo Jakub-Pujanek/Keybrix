@@ -52,6 +52,32 @@ const mouseButtonMap: Record<string, Button> = {
   MIDDLE: Button.MIDDLE
 }
 
+const mouseButtonAliases: Record<string, string> = {
+  LEWY: 'LEFT',
+  PRAWY: 'RIGHT',
+  SRODKOWY: 'MIDDLE',
+  SRODKOWYCH: 'MIDDLE'
+}
+
+type InputDeviceWithConfig = {
+  config?: {
+    autoDelayMs?: number
+  }
+}
+
+const ensureLowLatencyInput = (): void => {
+  const keyboardWithConfig = keyboard as unknown as InputDeviceWithConfig
+  if (
+    keyboardWithConfig.config &&
+    typeof keyboardWithConfig.config.autoDelayMs === 'number' &&
+    keyboardWithConfig.config.autoDelayMs > 0
+  ) {
+    keyboardWithConfig.config.autoDelayMs = 0
+  }
+}
+
+ensureLowLatencyInput()
+
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -91,6 +117,25 @@ const executeWithTimeout = async <T>(
   }
 }
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  return String(error)
+}
+
+const withCommandErrorContext = async <T>(
+  operation: () => Promise<T>,
+  contextMessage: string
+): Promise<T> => {
+  try {
+    return await operation()
+  } catch (error) {
+    throw new Error(`${contextMessage}: ${getErrorMessage(error)}`)
+  }
+}
+
 const resolveWaitDuration = (command: RuntimeCommand, fallbackMs: number): number => {
   if (command.payload && typeof command.payload === 'object') {
     const payload = command.payload as { durationMs?: unknown }
@@ -126,11 +171,20 @@ const resolveKey = (token: string): Key => {
 }
 
 const resolveMouseButton = (value: unknown): { label: string; button: Button } => {
-  const buttonLabel =
-    typeof value === 'string' && value.trim().length > 0 ? value.toUpperCase() : 'LEFT'
+  const normalizedInput =
+    typeof value === 'string' && value.trim().length > 0
+      ? value
+          .trim()
+          .replace(/^['"`]+|['"`]+$/g, '')
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .toUpperCase()
+      : 'LEFT'
+
+  const buttonLabel = mouseButtonAliases[normalizedInput] ?? normalizedInput
   const button = mouseButtonMap[buttonLabel]
 
-  if (!button) {
+  if (button === undefined) {
     throw new Error(`Unsupported mouse button '${buttonLabel}'`)
   }
 
@@ -138,6 +192,56 @@ const resolveMouseButton = (value: unknown): { label: string; button: Button } =
     label: buttonLabel,
     button
   }
+}
+
+const normalizeMouseButtonPayloadValue = (value: unknown): unknown => {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  const normalizedInput = value
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+
+  return mouseButtonAliases[normalizedInput] ?? normalizedInput
+}
+
+const normalizePayloadForSchemaValidation = (
+  commandType: EditorBlockType,
+  payload: Record<string, unknown>
+): Record<string, unknown> => {
+  if (
+    commandType === 'MOUSE_CLICK' ||
+    commandType === 'AUTOCLICKER_TIMED' ||
+    commandType === 'AUTOCLICKER_INFINITE'
+  ) {
+    return {
+      ...payload,
+      button: normalizeMouseButtonPayloadValue(payload.button)
+    }
+  }
+
+  return payload
+}
+
+const asFiniteNumber = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null
+  }
+
+  return value
+}
+
+const asPositiveRoundedIntOr = (value: unknown, fallback: number): number => {
+  const numeric = asFiniteNumber(value)
+  if (numeric === null) {
+    return fallback
+  }
+
+  return Math.max(1, Math.round(numeric))
 }
 
 const extractSingleKeyToken = (command: RuntimeCommand, commandType: string): string => {
@@ -317,11 +421,13 @@ const runMouseClick = async (
   }
 
   const payload = command.payload as { x?: unknown; y?: unknown; button?: unknown }
-  if (typeof payload.x !== 'number' || typeof payload.y !== 'number') {
+  const xCandidate = asFiniteNumber(payload.x)
+  const yCandidate = asFiniteNumber(payload.y)
+  if (xCandidate === null || yCandidate === null) {
     throw new Error('MOUSE_CLICK requires numeric x and y')
   }
-  const x = payload.x
-  const y = payload.y
+  const x = Math.round(xCandidate)
+  const y = Math.round(yCandidate)
 
   const { label: buttonLabel, button } = resolveMouseButton(payload.button)
 
@@ -331,12 +437,20 @@ const runMouseClick = async (
   })
   const mouseTimeoutMs = getCommandTimeoutMs('mouse', context.sessionType)
   await executeWithTimeout(
-    () => mouse.setPosition(new Point(x, y)),
+    () =>
+      withCommandErrorContext(
+        () => mouse.setPosition(new Point(x, y)),
+        `MOUSE_CLICK move to (${x}, ${y}) failed`
+      ),
     mouseTimeoutMs,
     `MOUSE_CLICK timed out after ${mouseTimeoutMs}ms while moving cursor.`
   )
   await executeWithTimeout(
-    () => mouse.click(button),
+    () =>
+      withCommandErrorContext(
+        () => mouse.click(button),
+        `MOUSE_CLICK click with button '${buttonLabel}' failed`
+      ),
     mouseTimeoutMs,
     `MOUSE_CLICK timed out after ${mouseTimeoutMs}ms while clicking '${buttonLabel}'.`
   )
@@ -360,10 +474,8 @@ const runAutoclickerTimed = async (
     durationMs?: unknown
   }
   const { label: buttonLabel, button } = resolveMouseButton(payload.button)
-  const frequencyMs =
-    typeof payload.frequencyMs === 'number' ? Math.max(1, Math.round(payload.frequencyMs)) : 100
-  const durationMs =
-    typeof payload.durationMs === 'number' ? Math.max(1, Math.round(payload.durationMs)) : 1000
+  const frequencyMs = asPositiveRoundedIntOr(payload.frequencyMs, 100)
+  const durationMs = asPositiveRoundedIntOr(payload.durationMs, 1000)
   const iterations = Math.max(1, Math.floor(durationMs / frequencyMs))
   const mouseTimeoutMs = getCommandTimeoutMs('mouse', context.sessionType)
 
@@ -378,7 +490,11 @@ const runAutoclickerTimed = async (
     }
 
     await executeWithTimeout(
-      () => mouse.click(button),
+      () =>
+        withCommandErrorContext(
+          () => mouse.click(button),
+          `AUTOCLICKER_TIMED click with button '${buttonLabel}' failed`
+        ),
       mouseTimeoutMs,
       `AUTOCLICKER_TIMED timed out after ${mouseTimeoutMs}ms while clicking '${buttonLabel}'.`
     )
@@ -404,8 +520,7 @@ const runAutoclickerInfinite = async (
 
   const payload = command.payload as { button?: unknown; frequencyMs?: unknown }
   const { label: buttonLabel, button } = resolveMouseButton(payload.button)
-  const frequencyMs =
-    typeof payload.frequencyMs === 'number' ? Math.max(1, Math.round(payload.frequencyMs)) : 100
+  const frequencyMs = asPositiveRoundedIntOr(payload.frequencyMs, 100)
   const mouseTimeoutMs = getCommandTimeoutMs('mouse', context.sessionType)
 
   context.onLog({
@@ -419,11 +534,15 @@ const runAutoclickerInfinite = async (
         level: 'INFO',
         message: 'Autoclicker infinite stopped by abort/global master.'
       })
-      return false
+      return true
     }
 
     await executeWithTimeout(
-      () => mouse.click(button),
+      () =>
+        withCommandErrorContext(
+          () => mouse.click(button),
+          `AUTOCLICKER_INFINITE click with button '${buttonLabel}' failed`
+        ),
       mouseTimeoutMs,
       `AUTOCLICKER_INFINITE timed out after ${mouseTimeoutMs}ms while clicking '${buttonLabel}'.`
     )
@@ -440,14 +559,15 @@ const runMoveMouseDuration = async (
   }
 
   const payload = command.payload as { x?: unknown; y?: unknown; durationMs?: unknown }
-  if (typeof payload.x !== 'number' || typeof payload.y !== 'number') {
+  const xCandidate = asFiniteNumber(payload.x)
+  const yCandidate = asFiniteNumber(payload.y)
+  if (xCandidate === null || yCandidate === null) {
     throw new Error('MOVE_MOUSE_DURATION requires numeric x and y')
   }
 
-  const x = Math.round(payload.x)
-  const y = Math.round(payload.y)
-  const durationMs =
-    typeof payload.durationMs === 'number' ? Math.max(1, Math.round(payload.durationMs)) : 250
+  const x = Math.round(xCandidate)
+  const y = Math.round(yCandidate)
+  const durationMs = asPositiveRoundedIntOr(payload.durationMs, 250)
 
   context.onLog({
     level: 'RUN',
@@ -459,7 +579,11 @@ const runMoveMouseDuration = async (
     durationMs + 250
   )
   await executeWithTimeout(
-    () => mouse.setPosition(new Point(x, y)),
+    () =>
+      withCommandErrorContext(
+        () => mouse.setPosition(new Point(x, y)),
+        `MOVE_MOUSE_DURATION move to (${x}, ${y}) failed`
+      ),
     mouseTimeoutMs,
     `MOVE_MOUSE_DURATION timed out after ${mouseTimeoutMs}ms while moving cursor.`
   )
@@ -640,7 +764,7 @@ export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCom
       }
 
       if (commands.length === 0) {
-        await sleep(Math.max(10, context.settings.delayMs))
+        await sleep(Math.max(0, context.settings.delayMs))
       }
     }
   }
@@ -664,7 +788,11 @@ export const executeRuntimeCommand = async (
     command.payload && typeof command.payload === 'object'
       ? (command.payload as Record<string, unknown>)
       : {}
-  BLOCK_REGISTRY_BY_TYPE[commandType as EditorBlockType].payloadSchema.parse(payload)
+  const payloadForValidation = normalizePayloadForSchemaValidation(
+    commandType as EditorBlockType,
+    payload
+  )
+  BLOCK_REGISTRY_BY_TYPE[commandType as EditorBlockType].payloadSchema.parse(payloadForValidation)
 
   const handler = BLOCK_RUNTIME_REGISTRY[commandType as EditorBlockType]
   return handler(command, context)

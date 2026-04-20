@@ -31,6 +31,12 @@ describe('preload api bridge', () => {
       getRecent: () => Promise<unknown[]>
       onNewLog: (callback: (log: unknown) => void) => () => void
     }
+    mousePicker: {
+      start: () => Promise<boolean>
+      stop: () => Promise<boolean>
+      onPreviewUpdate: (callback: (payload: unknown) => void) => () => void
+      onCoordinateSelected: (callback: (payload: unknown) => void) => () => void
+    }
     macros: {
       getAll: () => Promise<unknown[]>
       getById: (id: string) => Promise<unknown>
@@ -38,6 +44,7 @@ describe('preload api bridge', () => {
       delete: (id: string) => Promise<boolean>
       toggle: (id: string, isActive: boolean) => Promise<boolean>
       runManually: (id: string, context?: { attemptId?: string }) => Promise<unknown>
+      stop: (id: string, context?: { attemptId?: string }) => Promise<unknown>
     }
   } =>
     (window as unknown as { api: unknown }).api as {
@@ -50,6 +57,12 @@ describe('preload api bridge', () => {
         getRecent: () => Promise<unknown[]>
         onNewLog: (callback: (log: unknown) => void) => () => void
       }
+      mousePicker: {
+        start: () => Promise<boolean>
+        stop: () => Promise<boolean>
+        onPreviewUpdate: (callback: (payload: unknown) => void) => () => void
+        onCoordinateSelected: (callback: (payload: unknown) => void) => () => void
+      }
       macros: {
         getAll: () => Promise<unknown[]>
         getById: (id: string) => Promise<unknown>
@@ -57,6 +70,7 @@ describe('preload api bridge', () => {
         delete: (id: string) => Promise<boolean>
         toggle: (id: string, isActive: boolean) => Promise<boolean>
         runManually: (id: string, context?: { attemptId?: string }) => Promise<unknown>
+        stop: (id: string, context?: { attemptId?: string }) => Promise<unknown>
       }
     }
   it('invokes system.getSessionInfo channel and returns parsed payload', async () => {
@@ -236,6 +250,43 @@ describe('preload api bridge', () => {
     expect(removeListenerMock).toHaveBeenCalledWith(IPC_CHANNELS.logs.newLog, listener)
   })
 
+  it('maps mouse picker start/stop and subscriptions to ipcRenderer', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+    invokeMock.mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+
+    await import('./index')
+    const api = getApi()
+
+    const offPreview = api.mousePicker.onPreviewUpdate(() => undefined)
+    const offSelected = api.mousePicker.onCoordinateSelected(() => undefined)
+    const started = await api.mousePicker.start()
+    const stopped = await api.mousePicker.stop()
+
+    expect(started).toBe(true)
+    expect(stopped).toBe(true)
+    expect(onMock).toHaveBeenCalledWith(
+      IPC_CHANNELS.mousePicker.previewUpdate,
+      expect.any(Function)
+    )
+    expect(onMock).toHaveBeenCalledWith(
+      IPC_CHANNELS.mousePicker.coordinateSelected,
+      expect.any(Function)
+    )
+    expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.mousePicker.start)
+    expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.mousePicker.stop)
+
+    offPreview()
+    offSelected()
+    expect(removeListenerMock).toHaveBeenCalledWith(
+      IPC_CHANNELS.mousePicker.previewUpdate,
+      onMock.mock.calls.find((call) => call[0] === IPC_CHANNELS.mousePicker.previewUpdate)?.[1]
+    )
+    expect(removeListenerMock).toHaveBeenCalledWith(
+      IPC_CHANNELS.mousePicker.coordinateSelected,
+      onMock.mock.calls.find((call) => call[0] === IPC_CHANNELS.mousePicker.coordinateSelected)?.[1]
+    )
+  })
+
   it('invokes macros.run channel for manual run', async () => {
     ;(process as { contextIsolated?: boolean }).contextIsolated = false
     invokeMock.mockResolvedValue({
@@ -311,6 +362,11 @@ describe('preload api bridge', () => {
         status: 'IDLE',
         blocksJson: { nodes: [], zoom: 1 }
       })
+      .mockResolvedValueOnce({
+        runId: 'stop-1',
+        success: true,
+        reasonCode: 'ABORTED'
+      })
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(true)
 
@@ -327,6 +383,7 @@ describe('preload api bridge', () => {
       status: 'IDLE',
       blocksJson: { nodes: [], zoom: 1 }
     })
+    await api.macros.stop('macro-1')
     await api.macros.toggle('macro-1', true)
     await api.macros.delete('macro-1')
 
@@ -335,6 +392,10 @@ describe('preload api bridge', () => {
     expect(invokeMock).toHaveBeenCalledWith(
       IPC_CHANNELS.macros.save,
       expect.objectContaining({ id: 'macro-1', shortcut: 'CTRL+2' })
+    )
+    expect(invokeMock).toHaveBeenCalledWith(
+      IPC_CHANNELS.macros.stop,
+      expect.objectContaining({ id: 'macro-1' })
     )
     expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.macros.toggle, 'macro-1', true)
     expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.macros.delete, 'macro-1')

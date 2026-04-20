@@ -14,6 +14,7 @@ type TestRunModalProps = {
   error: string | null
   onSandboxTextChange: (value: string) => void
   onRun: () => Promise<void>
+  onStop: () => Promise<void>
   onClose: () => void
 }
 
@@ -54,26 +55,27 @@ function TestRunModal({
   error,
   onSandboxTextChange,
   onRun,
+  onStop,
   onClose
 }: TestRunModalProps): React.JSX.Element | null {
   if (!isOpen) return null
 
   return (
     <div
-      className="fixed inset-0 z-[2200] flex items-center justify-center bg-black/55 px-4"
+      className="fixed inset-0 z-2200 flex items-center justify-center bg-black/55 px-4"
       onClick={() => {
         if (!isRunning) onClose()
       }}
     >
       <article
-        className="grid w-full max-w-6xl gap-4 rounded-xl border border-[var(--kb-border)] bg-[var(--kb-bg-surface)] p-5 shadow-[0_24px_56px_-28px_rgba(0,0,0,0.65)] lg:grid-cols-[1.2fr_1fr]"
+        className="grid w-full max-w-6xl gap-4 rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-5 shadow-[0_24px_56px_-28px_rgba(0,0,0,0.65)] lg:grid-cols-[1.2fr_1fr]"
         onClick={(event) => {
           event.stopPropagation()
         }}
       >
         <section>
-          <h3 className="text-xl font-semibold text-[var(--kb-text-main)]">Test makra na zywo</h3>
-          <p className="mt-1 text-sm text-[var(--kb-text-muted)]">
+          <h3 className="text-xl font-semibold text-(--kb-text-main)">Test makra na zywo</h3>
+          <p className="mt-1 text-sm text-(--kb-text-muted)">
             Kliknij w pole i uruchom test. Jesli makro wpisuje tekst, zobaczysz rezultat tutaj.
           </p>
 
@@ -84,7 +86,7 @@ function TestRunModal({
               onSandboxTextChange(event.target.value)
             }}
             placeholder="Pole testowe: tutaj zobaczysz efekt klikow/pisania"
-            className="mt-4 h-56 w-full resize-none rounded border border-[var(--kb-border)] bg-[var(--kb-bg-overlay)] p-3 text-sm text-[var(--kb-text-main)] outline-none focus:border-[rgb(var(--kb-accent-rgb))]"
+            className="mt-4 h-56 w-full resize-none rounded border border-(--kb-border) bg-(--kb-bg-overlay) p-3 text-sm text-(--kb-text-main) outline-none focus:border-[rgb(var(--kb-accent-rgb))]"
           />
 
           {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
@@ -95,19 +97,23 @@ function TestRunModal({
             </Button>
             <Button
               variant="primary"
-              disabled={isRunning}
               onClick={() => {
+                if (isRunning) {
+                  void onStop()
+                  return
+                }
+
                 void onRun()
               }}
             >
-              {isRunning ? 'Uruchamianie...' : 'Uruchom test teraz'}
+              {isRunning ? 'Zatrzymaj test' : 'Uruchom test teraz'}
             </Button>
           </div>
         </section>
 
-        <section className="rounded border border-[var(--kb-border)] bg-[var(--kb-bg-panel)] p-3">
+        <section className="rounded border border-(--kb-border) bg-(--kb-bg-panel) p-3">
           <div className="flex items-center justify-between gap-3">
-            <h4 className="text-sm font-semibold tracking-[0.08em] text-[var(--kb-text-muted)] uppercase">
+            <h4 className="text-sm font-semibold tracking-[0.08em] text-(--kb-text-muted) uppercase">
               Logi wykonania
             </h4>
             <span className={`text-xs font-semibold ${statusClass[status]}`}>
@@ -115,20 +121,20 @@ function TestRunModal({
             </span>
           </div>
           {sessionId ? (
-            <p className="mt-1 font-mono text-[11px] text-[var(--kb-text-muted)]">{sessionId}</p>
+            <p className="mt-1 font-mono text-[11px] text-(--kb-text-muted)">{sessionId}</p>
           ) : null}
           {reasonCode ? (
-            <p className="mt-1 font-mono text-[11px] text-[var(--kb-text-muted)]">
+            <p className="mt-1 font-mono text-[11px] text-(--kb-text-muted)">
               reason: {reasonCode}
             </p>
           ) : null}
           <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
             {logs.length === 0 ? (
-              <p className="text-xs text-[var(--kb-text-muted)]">Brak logow. Uruchom test makra.</p>
+              <p className="text-xs text-(--kb-text-muted)">Brak logow. Uruchom test makra.</p>
             ) : (
               logs.map((log) => (
-                <p key={log.id} className="font-mono text-xs text-[var(--kb-text-main)]">
-                  <span className="text-[var(--kb-text-muted)]">{log.timestamp}</span>{' '}
+                <p key={log.id} className="font-mono text-xs text-(--kb-text-main)">
+                  <span className="text-(--kb-text-muted)">{log.timestamp}</span>{' '}
                   <span className={levelClass[log.level]}>{log.level}</span> {log.message}
                 </p>
               ))
