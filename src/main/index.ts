@@ -44,6 +44,9 @@ let mainWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let isQuitting = false
 const runtimeDisposers: Array<() => void> = []
+let mousePickerTraceId: string | null = null
+let mousePickerPreviewTraceCounter = 0
+const TRACE_MOUSE_PICKER = process.env['KEYBRIX_MOUSE_PICKER_TRACE'] === '1'
 
 // Phase 0 backend guardrails:
 // - Main is the source of truth for runtime and domain data.
@@ -465,7 +468,20 @@ const registerIpcHandlers = (): void => {
 
   ipcMain.handle(IPC_CHANNELS.mousePicker.start, () => {
     try {
-      return mousePickerService.start()
+      const started = mousePickerService.start()
+      if (started) {
+        mousePickerTraceId = globalThis.crypto.randomUUID()
+        mousePickerPreviewTraceCounter = 0
+      }
+
+      if (TRACE_MOUSE_PICKER) {
+        logsService.append({
+          level: 'INFO',
+          message: `[mouse-picker-trace] main ipc.start started=${String(started)} traceId=${mousePickerTraceId ?? 'none'} windows=${BrowserWindow.getAllWindows().length}`
+        })
+      }
+
+      return started
     } catch (error) {
       structuredLogger.error('Mouse picker start failed.', {
         scope: 'ipc.mousePicker.start',
@@ -477,7 +493,20 @@ const registerIpcHandlers = (): void => {
 
   ipcMain.handle(IPC_CHANNELS.mousePicker.stop, () => {
     try {
-      return mousePickerService.stop()
+      const stopped = mousePickerService.stop()
+
+      if (TRACE_MOUSE_PICKER) {
+        logsService.append({
+          level: 'INFO',
+          message: `[mouse-picker-trace] main ipc.stop stopped=${String(stopped)} traceId=${mousePickerTraceId ?? 'none'}`
+        })
+      }
+
+      if (stopped) {
+        mousePickerTraceId = null
+      }
+
+      return stopped
     } catch (error) {
       structuredLogger.error('Mouse picker stop failed.', {
         scope: 'ipc.mousePicker.stop',
@@ -700,6 +729,16 @@ app.whenReady().then(() => {
   runtimeDisposers.push(
     mousePickerService.onPreviewUpdate((preview) => {
       const parsed = MousePickerPreviewSchema.parse(preview)
+      mousePickerPreviewTraceCounter += 1
+      if (
+        TRACE_MOUSE_PICKER &&
+        (mousePickerPreviewTraceCounter <= 5 || mousePickerPreviewTraceCounter % 10 === 0)
+      ) {
+        logsService.append({
+          level: 'INFO',
+          message: `[mouse-picker-trace] main preview#${mousePickerPreviewTraceCounter} traceId=${mousePickerTraceId ?? 'none'} x=${parsed.x} y=${parsed.y} active=${String(parsed.isActive)}`
+        })
+      }
       broadcastToRenderers(IPC_CHANNELS.mousePicker.previewUpdate, parsed)
     })
   )
@@ -707,6 +746,12 @@ app.whenReady().then(() => {
   runtimeDisposers.push(
     mousePickerService.onCoordinateSelected((point) => {
       const parsed = MousePickerPointSchema.parse(point)
+      if (TRACE_MOUSE_PICKER) {
+        logsService.append({
+          level: 'INFO',
+          message: `[mouse-picker-trace] main coordinate traceId=${mousePickerTraceId ?? 'none'} x=${parsed.x} y=${parsed.y} ts=${parsed.timestamp}`
+        })
+      }
       broadcastToRenderers(IPC_CHANNELS.mousePicker.coordinateSelected, parsed)
     })
   )

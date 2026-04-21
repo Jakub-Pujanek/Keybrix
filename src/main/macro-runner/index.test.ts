@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_REPEAT_NESTING_DEPTH } from '../../shared/macro-runtime'
 
-const { pressKeyMock, releaseKeyMock, typeMock, setPositionMock, clickMock } = vi.hoisted(() => ({
+const {
+  pressKeyMock,
+  releaseKeyMock,
+  typeMock,
+  setPositionMock,
+  getPositionMock,
+  moveMock,
+  straightToMock,
+  clickMock
+} = vi.hoisted(() => ({
   pressKeyMock: vi.fn(async () => undefined),
   releaseKeyMock: vi.fn(async () => undefined),
   typeMock: vi.fn(async () => undefined),
   setPositionMock: vi.fn(async () => undefined),
+  getPositionMock: vi.fn(async () => ({ x: 0, y: 0 })),
+  moveMock: vi.fn(async () => undefined),
+  straightToMock: vi.fn(async (target: { x: number; y: number }) => [target]),
   clickMock: vi.fn(async () => undefined)
 }))
 
@@ -27,9 +39,16 @@ vi.mock('@nut-tree-fork/nut-js', () => ({
     type: typeMock
   },
   mouse: {
+    config: {
+      autoDelayMs: 200,
+      mouseSpeed: 1000
+    },
     setPosition: setPositionMock,
+    getPosition: getPositionMock,
+    move: moveMock,
     click: clickMock
   },
+  straightTo: straightToMock,
   Button: buttonValues,
   Key: {
     LeftControl: 'LeftControl',
@@ -58,6 +77,10 @@ describe('MacroRunner', () => {
     releaseKeyMock.mockClear()
     typeMock.mockClear()
     setPositionMock.mockClear()
+    getPositionMock.mockClear()
+    getPositionMock.mockResolvedValue({ x: 0, y: 0 })
+    moveMock.mockClear()
+    straightToMock.mockClear()
     clickMock.mockClear()
   })
 
@@ -330,7 +353,7 @@ describe('MacroRunner', () => {
     expect(pressKeyMock).toHaveBeenCalled()
     expect(releaseKeyMock).toHaveBeenCalled()
     expect(clickMock.mock.calls.length).toBeGreaterThanOrEqual(3)
-    expect(setPositionMock).toHaveBeenCalled()
+    expect(moveMock).toHaveBeenCalled()
   })
 
   it('applies safe fallback payload values for AUTOCLICKER_TIMED and MOVE_MOUSE_DURATION', async () => {
@@ -371,9 +394,10 @@ describe('MacroRunner', () => {
 
     expect(result.success).toBe(true)
     expect(clickMock).toHaveBeenCalledTimes(1)
-    expect(setPositionMock).toHaveBeenCalledTimes(1)
+    expect(moveMock).toHaveBeenCalledTimes(1)
+    expect(straightToMock).toHaveBeenCalledTimes(1)
 
-    const targetPoint = setPositionMock.mock.calls[0]?.[0] as { x: number; y: number }
+    const targetPoint = straightToMock.mock.calls[0]?.[0] as { x: number; y: number }
     expect(targetPoint.x).toBe(21)
     expect(targetPoint.y).toBe(10)
   })

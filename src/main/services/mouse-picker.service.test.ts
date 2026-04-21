@@ -70,4 +70,31 @@ describe('MousePickerService', () => {
     expect(selected).toHaveLength(1)
     expect(selected[0]).toMatchObject({ x: 99, y: 101 })
   })
+
+  it('prefers fresh cursor position on stop over stale preview point', () => {
+    const points = [
+      { x: 20, y: 30 },
+      { x: 21, y: 31 },
+      { x: 90, y: 120 }
+    ]
+
+    const getCursorPoint = vi.fn(() => points.shift() ?? { x: 90, y: 120 })
+    const service = new MousePickerService({
+      getCursorPoint,
+      nowIso: () => '2026-04-19T00:00:00.000Z',
+      pollIntervalMs: 100
+    })
+
+    const selected: Array<{ x: number; y: number }> = []
+    service.onCoordinateSelected((payload) => {
+      selected.push(payload)
+    })
+
+    expect(service.start()).toBe(true)
+    vi.advanceTimersByTime(110)
+    expect(service.stop()).toBe(true)
+
+    expect(selected).toHaveLength(1)
+    expect(selected[0]).toMatchObject({ x: 90, y: 120 })
+  })
 })

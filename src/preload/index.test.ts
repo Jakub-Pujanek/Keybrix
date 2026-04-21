@@ -287,6 +287,62 @@ describe('preload api bridge', () => {
     )
   })
 
+  it('coerces mouse picker payloads and drops malformed ones without throwing', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+    const previewCallback = vi.fn()
+    const selectedCallback = vi.fn()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await import('./index')
+    const api = getApi()
+
+    api.mousePicker.onPreviewUpdate(previewCallback)
+    api.mousePicker.onCoordinateSelected(selectedCallback)
+
+    const previewListener = onMock.mock.calls.find(
+      (call) => call[0] === IPC_CHANNELS.mousePicker.previewUpdate
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+    const selectedListener = onMock.mock.calls.find(
+      (call) => call[0] === IPC_CHANNELS.mousePicker.coordinateSelected
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+
+    expect(previewListener).toBeDefined()
+    expect(selectedListener).toBeDefined()
+
+    previewListener?.(null, {
+      x: 120.4,
+      y: 299.6,
+      isActive: true,
+      timestamp: '2026-04-21T12:00:00.000Z'
+    })
+    selectedListener?.(null, {
+      x: -8.2,
+      y: 40.7,
+      timestamp: '2026-04-21T12:00:01.000Z'
+    })
+
+    expect(previewCallback).toHaveBeenCalledWith({
+      x: 120,
+      y: 300,
+      isActive: true,
+      timestamp: '2026-04-21T12:00:00.000Z'
+    })
+    expect(selectedCallback).toHaveBeenCalledWith({
+      x: 0,
+      y: 41,
+      timestamp: '2026-04-21T12:00:01.000Z'
+    })
+
+    previewListener?.(null, { x: 'bad', y: 10, isActive: true, timestamp: 'bad-ts' })
+    selectedListener?.(null, { x: 12, y: undefined, timestamp: '2026-04-21T12:00:01.000Z' })
+
+    expect(previewCallback).toHaveBeenCalledTimes(1)
+    expect(selectedCallback).toHaveBeenCalledTimes(1)
+    expect(warnSpy).toHaveBeenCalled()
+
+    warnSpy.mockRestore()
+  })
+
   it('invokes macros.run channel for manual run', async () => {
     ;(process as { contextIsolated?: boolean }).contextIsolated = false
     invokeMock.mockResolvedValue({

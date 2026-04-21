@@ -50,6 +50,12 @@ type EditorState = {
 
 let mousePickerPreviewUnsubscribe: (() => void) | null = null
 let mousePickerCoordinateUnsubscribe: (() => void) | null = null
+let mousePickerPendingTargetNodeId: string | null = null
+let mousePickerStopInFlight = false
+let mousePickerSelectionCommitted = false
+let mousePickerTraceId = 0
+const TRACE_MOUSE_PICKER =
+  (import.meta as { env?: Record<string, unknown> }).env?.['VITE_MOUSE_PICKER_TRACE'] === '1'
 
 const ensureMousePickerBridge = (
   onPreview: (payload: { x: number; y: number; isActive: boolean }) => void,
@@ -61,6 +67,75 @@ const ensureMousePickerBridge = (
 
   if (!mousePickerCoordinateUnsubscribe) {
     mousePickerCoordinateUnsubscribe = window.api.mousePicker.onCoordinateSelected(onSelected)
+  }
+}
+
+const sanitizePickerCoordinate = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null
+  }
+
+  return Math.max(0, Math.round(value))
+}
+
+const applyMousePickerSelection = (
+  state: EditorState,
+  targetNodeId: string,
+  point: { x: unknown; y: unknown }
+): Pick<EditorState, 'nodes' | 'mousePickerTargetNodeId' | 'isMousePickerActive'> => {
+  const x = sanitizePickerCoordinate(point.x)
+  const y = sanitizePickerCoordinate(point.y)
+
+  if (x === null || y === null) {
+    if (TRACE_MOUSE_PICKER) {
+      console.warn('[mouse-picker-trace] renderer selection rejected (invalid coordinates)', {
+        traceId: mousePickerTraceId,
+        targetNodeId,
+        x: point.x,
+        y: point.y
+      })
+    }
+    return {
+      nodes: state.nodes,
+      mousePickerTargetNodeId: null,
+      isMousePickerActive: false
+    }
+  }
+
+  const targetExists = state.nodes.some((node) => node.id === targetNodeId)
+  if (TRACE_MOUSE_PICKER) {
+    if (!targetExists) {
+      console.warn('[mouse-picker-trace] renderer selection dropped (missing target node)', {
+        traceId: mousePickerTraceId,
+        targetNodeId,
+        x,
+        y
+      })
+    } else {
+      console.info('[mouse-picker-trace] renderer selection commit', {
+        traceId: mousePickerTraceId,
+        targetNodeId,
+        x,
+        y
+      })
+    }
+  }
+
+  return {
+    nodes: state.nodes.map((node) =>
+      node.id === targetNodeId
+        ? {
+            ...node,
+            payload: {
+              ...node.payload,
+              x,
+              y
+            }
+          }
+        : node
+    ),
+    mousePickerTargetNodeId: null,
+    isMousePickerActive: false
   }
 }
 
@@ -686,6 +761,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startMousePicker: async (nodeId) => {
     ensureMousePickerBridge(
       (payload) => {
+        if (TRACE_MOUSE_PICKER) {
+          console.info('[mouse-picker-trace] renderer preview', {
+            traceId: mousePickerTraceId,
+            targetNodeId: get().mousePickerTargetNodeId,
+            x: payload.x,
+            y: payload.y,
+            isActive: payload.isActive
+          })
+        }
         set({
           mousePickerPreview: {
             x: payload.x,
@@ -695,29 +779,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         })
       },
       (point) => {
+        if (TRACE_MOUSE_PICKER) {
+          console.info('[mouse-picker-trace] renderer coordinate received', {
+            traceId: mousePickerTraceId,
+            targetNodeId: get().mousePickerTargetNodeId ?? mousePickerPendingTargetNodeId,
+            x: point.x,
+            y: point.y
+          })
+        }
         set((state) => {
-          if (!state.mousePickerTargetNodeId) {
+          mousePickerSelectionCommitted = true
+          const targetNodeId = state.mousePickerTargetNodeId ?? mousePickerPendingTargetNodeId
+          mousePickerPendingTargetNodeId = null
+
+          if (!targetNodeId) {
             return {
+              mousePickerTargetNodeId: null,
               isMousePickerActive: false
             }
           }
 
-          return {
-            nodes: state.nodes.map((node) =>
-              node.id === state.mousePickerTargetNodeId
-                ? {
-                    ...node,
-                    payload: {
-                      ...node.payload,
-                      x: point.x,
-                      y: point.y
-                    }
-                  }
-                : node
-            ),
-            mousePickerTargetNodeId: null,
-            isMousePickerActive: false
-          }
+          return applyMousePickerSelection(state, targetNodeId, point)
         })
       }
     )
@@ -726,9 +808,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       mousePickerTargetNodeId: nodeId,
       isMousePickerActive: true
     })
+    mousePickerTraceId += 1
+    if (TRACE_MOUSE_PICKER) {
+      console.info('[mouse-picker-trace] renderer start', {
+        traceId: mousePickerTraceId,
+        nodeId
+      })
+    }
+    mousePickerSelectionCommitted = false
+    mousePickerPendingTargetNodeId = null
 
     const started = await window.api.mousePicker.start()
     if (!started) {
+      if (TRACE_MOUSE_PICKER) {
+        console.info('[mouse-picker-trace] renderer start rejected', {
+          traceId: mousePickerTraceId,
+          nodeId
+        })
+      }
+      mousePickerPendingTargetNodeId = null
       set({
         mousePickerTargetNodeId: null,
         isMousePickerActive: false
@@ -737,13 +835,88 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   stopMousePicker: async () => {
+    if (mousePickerStopInFlight) {
+      if (TRACE_MOUSE_PICKER) {
+        console.info('[mouse-picker-trace] renderer stop skipped (in-flight)', {
+          traceId: mousePickerTraceId
+        })
+      }
+      return
+    }
+
+    mousePickerStopInFlight = true
+    const targetNodeId = get().mousePickerTargetNodeId
+    if (targetNodeId) {
+      mousePickerPendingTargetNodeId = targetNodeId
+    }
+
+    set({
+      isMousePickerActive: false
+    })
+    if (TRACE_MOUSE_PICKER) {
+      console.info('[mouse-picker-trace] renderer stop requested', {
+        traceId: mousePickerTraceId,
+        targetNodeId: targetNodeId ?? null,
+        pendingTargetNodeId: mousePickerPendingTargetNodeId,
+        hasPreview: Boolean(get().mousePickerPreview)
+      })
+    }
+
     try {
-      await window.api.mousePicker.stop()
-    } finally {
+      const stopped = await window.api.mousePicker.stop()
+      if (TRACE_MOUSE_PICKER) {
+        console.info('[mouse-picker-trace] renderer stop result', {
+          traceId: mousePickerTraceId,
+          stopped,
+          selectionCommitted: mousePickerSelectionCommitted
+        })
+      }
+      if (!stopped) {
+        const hasPendingTarget = Boolean(mousePickerPendingTargetNodeId)
+        if (!hasPendingTarget) {
+          set({
+            mousePickerTargetNodeId: null,
+            isMousePickerActive: false
+          })
+        }
+      } else if (!mousePickerSelectionCommitted) {
+        if (TRACE_MOUSE_PICKER) {
+          console.info('[mouse-picker-trace] renderer fallback from preview', {
+            traceId: mousePickerTraceId,
+            pendingTargetNodeId: mousePickerPendingTargetNodeId,
+            hasPreview: Boolean(get().mousePickerPreview)
+          })
+        }
+        set((state) => {
+          const targetNodeId = state.mousePickerTargetNodeId ?? mousePickerPendingTargetNodeId
+          mousePickerPendingTargetNodeId = null
+
+          if (!targetNodeId || !state.mousePickerPreview) {
+            return {
+              mousePickerTargetNodeId: null,
+              isMousePickerActive: false
+            }
+          }
+
+          return applyMousePickerSelection(state, targetNodeId, state.mousePickerPreview)
+        })
+      }
+    } catch (error) {
+      if (TRACE_MOUSE_PICKER) {
+        console.warn('[mouse-picker-trace] renderer stop failed', {
+          traceId: mousePickerTraceId,
+          error
+        })
+      }
+      mousePickerPendingTargetNodeId = null
+      mousePickerSelectionCommitted = false
       set({
         mousePickerTargetNodeId: null,
         isMousePickerActive: false
       })
+      throw error
+    } finally {
+      mousePickerStopInFlight = false
     }
   },
 

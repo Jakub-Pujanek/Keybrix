@@ -1,4 +1,4 @@
-import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js'
+import { Button, Key, keyboard, mouse, Point, straightTo } from '@nut-tree-fork/nut-js'
 import {
   RuntimeCommandSchema,
   type EditorBlockType,
@@ -62,6 +62,7 @@ const mouseButtonAliases: Record<string, string> = {
 type InputDeviceWithConfig = {
   config?: {
     autoDelayMs?: number
+    mouseSpeed?: number
   }
 }
 
@@ -73,6 +74,15 @@ const ensureLowLatencyInput = (): void => {
     keyboardWithConfig.config.autoDelayMs > 0
   ) {
     keyboardWithConfig.config.autoDelayMs = 0
+  }
+
+  const mouseWithConfig = mouse as unknown as InputDeviceWithConfig
+  if (
+    mouseWithConfig.config &&
+    typeof mouseWithConfig.config.autoDelayMs === 'number' &&
+    mouseWithConfig.config.autoDelayMs > 0
+  ) {
+    mouseWithConfig.config.autoDelayMs = 0
   }
 }
 
@@ -574,22 +584,46 @@ const runMoveMouseDuration = async (
     message: `Moving mouse to (${x}, ${y}) over ${durationMs}ms.`
   })
 
-  const mouseTimeoutMs = Math.max(
-    getCommandTimeoutMs('mouse', context.sessionType),
-    durationMs + 250
-  )
-  await executeWithTimeout(
-    () =>
-      withCommandErrorContext(
-        () => mouse.setPosition(new Point(x, y)),
-        `MOVE_MOUSE_DURATION move to (${x}, ${y}) failed`
-      ),
-    mouseTimeoutMs,
-    `MOVE_MOUSE_DURATION timed out after ${mouseTimeoutMs}ms while moving cursor.`
+  const currentPosition = await withCommandErrorContext(
+    () => mouse.getPosition(),
+    'MOVE_MOUSE_DURATION failed to read current cursor position'
   )
 
-  if (durationMs > 1) {
-    await sleep(durationMs)
+  const distancePx = Math.hypot(x - currentPosition.x, y - currentPosition.y)
+  const desiredSpeedPxPerSecond = Math.max(
+    1,
+    Math.round((distancePx / Math.max(durationMs, 1)) * 1000)
+  )
+  const mouseWithConfig = mouse as unknown as InputDeviceWithConfig
+  const previousSpeed =
+    mouseWithConfig.config && typeof mouseWithConfig.config.mouseSpeed === 'number'
+      ? mouseWithConfig.config.mouseSpeed
+      : undefined
+
+  if (mouseWithConfig.config) {
+    mouseWithConfig.config.mouseSpeed = desiredSpeedPxPerSecond
+  }
+
+  const mouseTimeoutMs = Math.max(
+    getCommandTimeoutMs('mouse', context.sessionType),
+    durationMs + 1000
+  )
+  const moveOperation = async (): Promise<void> => {
+    const path = await straightTo(new Point(x, y))
+    await mouse.move(path)
+  }
+
+  try {
+    await executeWithTimeout(
+      () =>
+        withCommandErrorContext(moveOperation, `MOVE_MOUSE_DURATION move to (${x}, ${y}) failed`),
+      mouseTimeoutMs,
+      `MOVE_MOUSE_DURATION timed out after ${mouseTimeoutMs}ms while moving cursor.`
+    )
+  } finally {
+    if (mouseWithConfig.config && previousSpeed !== undefined) {
+      mouseWithConfig.config.mouseSpeed = previousSpeed
+    }
   }
 
   context.onLog({

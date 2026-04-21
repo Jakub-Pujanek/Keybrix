@@ -1,15 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
-  ActivityLogSchema,
   coerceAppSettings,
   DashboardStatsSchema,
   IPC_CHANNELS,
   ManualRunReasonCodeSchema,
-  MousePickerPointSchema,
-  MousePickerPreviewSchema,
   UpdateAppSettingsInputSchema,
   type ActivityLog,
+  type MousePickerPoint,
+  type MousePickerPreview,
   type SessionCheckResult,
   type SessionDetectionConfidence,
   type SessionDetectionSource,
@@ -22,6 +21,7 @@ import {
 } from '../shared/api'
 
 const MACRO_STATUSES = new Set<Macro['status']>(['RUNNING', 'IDLE', 'ACTIVE', 'PAUSED'])
+const LOG_LEVELS = new Set<ActivityLog['level']>(['RUN', 'TRIG', 'INFO', 'WARN', 'ERR'])
 const MANUAL_RUN_REASON_CODES = new Set<ManualRunReasonCode>(ManualRunReasonCodeSchema.options)
 const SESSION_TYPES = new Set<SessionType>(['WAYLAND', 'X11', 'UNKNOWN'])
 const SESSION_DETECTION_SOURCES = new Set<SessionDetectionSource>([
@@ -36,6 +36,7 @@ const SESSION_DETECTION_SOURCES = new Set<SessionDetectionSource>([
   'UNKNOWN'
 ])
 const SESSION_DETECTION_CONFIDENCE = new Set<SessionDetectionConfidence>(['HIGH', 'MEDIUM', 'LOW'])
+const TRACE_MOUSE_PICKER = process.env['KEYBRIX_MOUSE_PICKER_TRACE'] === '1'
 
 const isManualRunReasonCode = (value: unknown): value is ManualRunReasonCode => {
   return typeof value === 'string' && MANUAL_RUN_REASON_CODES.has(value as ManualRunReasonCode)
@@ -43,6 +44,85 @@ const isManualRunReasonCode = (value: unknown): value is ManualRunReasonCode => 
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const coerceActivityLog = (value: unknown): ActivityLog | null => {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const id = value['id']
+  const timestamp = value['timestamp']
+  const level = value['level']
+  const runId = value['runId']
+  const message = value['message']
+
+  if (typeof id !== 'string' || id.length === 0) {
+    return null
+  }
+  if (typeof timestamp !== 'string' || timestamp.length === 0) {
+    return null
+  }
+  if (typeof level !== 'string' || !LOG_LEVELS.has(level as ActivityLog['level'])) {
+    return null
+  }
+  if (runId !== undefined && (typeof runId !== 'string' || runId.length === 0)) {
+    return null
+  }
+  if (typeof message !== 'string' || message.length === 0) {
+    return null
+  }
+
+  return {
+    id,
+    timestamp,
+    level: level as ActivityLog['level'],
+    runId: runId as string | undefined,
+    message
+  }
+}
+
+const coerceMousePickerPoint = (value: unknown): MousePickerPoint | null => {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const x = value['x']
+  const y = value['y']
+  const timestamp = value['timestamp']
+
+  if (typeof x !== 'number' || !Number.isFinite(x)) {
+    return null
+  }
+  if (typeof y !== 'number' || !Number.isFinite(y)) {
+    return null
+  }
+  if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp))) {
+    return null
+  }
+
+  return {
+    x: Math.max(0, Math.round(x)),
+    y: Math.max(0, Math.round(y)),
+    timestamp
+  }
+}
+
+const coerceMousePickerPreview = (value: unknown): MousePickerPreview | null => {
+  const point = coerceMousePickerPoint(value)
+  if (!point || !isRecord(value)) {
+    return null
+  }
+
+  const isActive = value['isActive']
+  if (typeof isActive !== 'boolean') {
+    return null
+  }
+
+  return {
+    ...point,
+    isActive
+  }
 }
 
 const isSessionType = (value: unknown): value is SessionType =>
@@ -553,9 +633,9 @@ const api: KeybrixApi = {
 
       const parsed: ActivityLog[] = []
       for (const log of result) {
-        const entry = ActivityLogSchema.safeParse(log)
-        if (entry.success) {
-          parsed.push(entry.data)
+        const entry = coerceActivityLog(log)
+        if (entry) {
+          parsed.push(entry)
         }
       }
 
@@ -569,13 +649,13 @@ const api: KeybrixApi = {
     },
     onNewLog: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {
-        const parsed = ActivityLogSchema.safeParse(payload)
-        if (!parsed.success) {
+        const parsed = coerceActivityLog(payload)
+        if (!parsed) {
           console.warn('[preload] logs.onNewLog dropped malformed payload.', { payload })
           return
         }
 
-        callback(parsed.data)
+        callback(parsed)
       }
 
       ipcRenderer.on(IPC_CHANNELS.logs.newLog, listener)
@@ -587,23 +667,38 @@ const api: KeybrixApi = {
   mousePicker: {
     start: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.mousePicker.start)
+      if (TRACE_MOUSE_PICKER) {
+        console.info('[mouse-picker-trace] preload ipc.start', { result })
+      }
       return result === true
     },
     stop: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.mousePicker.stop)
+      if (TRACE_MOUSE_PICKER) {
+        console.info('[mouse-picker-trace] preload ipc.stop', { result })
+      }
       return result === true
     },
     onPreviewUpdate: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {
-        const parsed = MousePickerPreviewSchema.safeParse(payload)
-        if (!parsed.success) {
+        const parsed = coerceMousePickerPreview(payload)
+        if (!parsed) {
           console.warn('[preload] mousePicker.onPreviewUpdate dropped malformed payload.', {
             payload
           })
           return
         }
 
-        callback(parsed.data)
+        if (TRACE_MOUSE_PICKER) {
+          console.info('[mouse-picker-trace] preload preview', {
+            x: parsed.x,
+            y: parsed.y,
+            isActive: parsed.isActive,
+            timestamp: parsed.timestamp
+          })
+        }
+
+        callback(parsed)
       }
 
       ipcRenderer.on(IPC_CHANNELS.mousePicker.previewUpdate, listener)
@@ -613,15 +708,23 @@ const api: KeybrixApi = {
     },
     onCoordinateSelected: (callback) => {
       const listener = (_event: unknown, payload: unknown): void => {
-        const parsed = MousePickerPointSchema.safeParse(payload)
-        if (!parsed.success) {
+        const parsed = coerceMousePickerPoint(payload)
+        if (!parsed) {
           console.warn('[preload] mousePicker.onCoordinateSelected dropped malformed payload.', {
             payload
           })
           return
         }
 
-        callback(parsed.data)
+        if (TRACE_MOUSE_PICKER) {
+          console.info('[mouse-picker-trace] preload coordinate', {
+            x: parsed.x,
+            y: parsed.y,
+            timestamp: parsed.timestamp
+          })
+        }
+
+        callback(parsed)
       }
 
       ipcRenderer.on(IPC_CHANNELS.mousePicker.coordinateSelected, listener)

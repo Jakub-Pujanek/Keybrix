@@ -382,6 +382,27 @@ function EditorScreen(): React.JSX.Element {
   }, [deleteSelected])
 
   useEffect(() => {
+    if (!isMousePickerActive) {
+      return
+    }
+
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('[data-mouse-picker-toggle="1"]')) {
+        return
+      }
+
+      void stopMousePicker()
+    }
+
+    window.addEventListener('pointerdown', onPointerDown, true)
+
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [isMousePickerActive, stopMousePicker])
+
+  useEffect(() => {
     return () => {
       void stopMousePicker().catch(() => undefined)
       clearMousePickerPreview()

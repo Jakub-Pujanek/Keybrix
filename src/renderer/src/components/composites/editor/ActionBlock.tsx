@@ -273,6 +273,7 @@ function ActionBlock({
             </select>
             <button
               type="button"
+              data-mouse-picker-toggle="1"
               onClick={() => {
                 if (isTargetedByMousePicker && isMousePickerActive) {
                   onStopMousePicker()
@@ -422,6 +423,7 @@ function ActionBlock({
             <span className="text-xs font-semibold text-white/55">ms</span>
             <button
               type="button"
+              data-mouse-picker-toggle="1"
               onClick={() => {
                 if (isTargetedByMousePicker && isMousePickerActive) {
                   onStopMousePicker()

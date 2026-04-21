@@ -54,7 +54,7 @@ export class MousePickerService {
       this.timer = null
     }
 
-    const selectedPoint = this.lastPoint ?? this.readPointFromCursor()
+    const selectedPoint = this.readPointFromCursor() ?? this.lastPoint
     if (selectedPoint) {
       this.lastPoint = selectedPoint
       for (const listener of this.coordinateListeners) {
