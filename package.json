@@ -1,10 +1,10 @@
 {
   "name": "keybrix",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "A desktop automation tool that lets users build macros using visual blocks instead of code. Create workflows, automate repetitive tasks, and control your system through a Scratch‑like block editor.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Jakub Pujanek",
+  "homepage": "https://github.com/Jakub-Pujanek/Keybrix",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -50,6 +50,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "4.1.2",
     "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.27",
     "c8": "^11.0.0",
