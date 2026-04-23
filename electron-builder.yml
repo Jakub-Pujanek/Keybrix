@@ -38,9 +38,12 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: github
-  owner: Jakub-Pujanek
-  repo: Keybrix
-  releaseType: draft
-  channel: latest
+"build": {
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "Jakub-Pujanek",
+      "repo": "Keybrix"
+    }
+  ]
+}
