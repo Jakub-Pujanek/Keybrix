@@ -164,7 +164,14 @@
     "quit": "Zakończ"
   },
   "notifications": {
-    "macroStarted": "Makro '{{macroName}}' zostało uruchomione."
+    "macroStarted": "Makro '{{macroName}}' zostało uruchomione.",
+    "updateReady": {
+      "title": "Aktualizacja {{version}} jest gotowa",
+      "body": "Nowa wersja została pobrana i jest gotowa do instalacji.",
+      "installNow": "Zainstaluj teraz",
+      "later": "Później",
+      "close": "Zamknij"
+    }
   },
   "wayland": {
     "banner": {

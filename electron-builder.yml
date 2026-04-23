@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.keybrix.app
 productName: keybrix
 directories:
   buildResources: build
@@ -39,5 +39,8 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: Jakub-Pujanek
+  repo: Keybrix
+  releaseType: draft
+  channel: latest

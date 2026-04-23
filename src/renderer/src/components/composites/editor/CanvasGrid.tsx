@@ -196,30 +196,51 @@ function CanvasGrid({
     }
   }, [isPanningCanvas])
 
-  const handleCanvasWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
-    event.preventDefault()
+  const handleCanvasWheel = useCallback(
+    (event: WheelEvent): void => {
+      const viewport = canvasRef.current
+      if (!viewport) {
+        return
+      }
 
-    const rect = event.currentTarget.getBoundingClientRect()
-    const pointerX = event.clientX - rect.left
-    const pointerY = event.clientY - rect.top
+      event.preventDefault()
 
-    const scale = Math.exp(-event.deltaY * 0.0018)
-    const nextZoom = Math.min(2, Math.max(0.5, zoom * scale))
-    if (nextZoom === zoom) return
+      const rect = viewport.getBoundingClientRect()
+      const pointerX = event.clientX - rect.left
+      const pointerY = event.clientY - rect.top
 
-    const worldX = (pointerX + camera.x) / zoom
-    const worldY = (pointerY + camera.y) / zoom
+      const scale = Math.exp(-event.deltaY * 0.0018)
+      const nextZoom = Math.min(2, Math.max(0.5, zoom * scale))
+      if (nextZoom === zoom) return
 
-    const nextCamera = clampCamera(
-      worldX * nextZoom - pointerX,
-      worldY * nextZoom - pointerY,
-      nextZoom
-    )
+      const worldX = (pointerX + camera.x) / zoom
+      const worldY = (pointerY + camera.y) / zoom
 
-    setCamera(nextCamera)
+      const nextCamera = clampCamera(
+        worldX * nextZoom - pointerX,
+        worldY * nextZoom - pointerY,
+        nextZoom
+      )
 
-    onZoomChange(nextZoom)
-  }
+      setCamera(nextCamera)
+
+      onZoomChange(nextZoom)
+    },
+    [camera.x, camera.y, canvasRef, clampCamera, onZoomChange, zoom]
+  )
+
+  useEffect(() => {
+    const viewport = canvasRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.addEventListener('wheel', handleCanvasWheel, { passive: false })
+
+    return () => {
+      viewport.removeEventListener('wheel', handleCanvasWheel)
+    }
+  }, [canvasRef, handleCanvasWheel])
 
   const handleCanvasDragOver = (event: React.DragEvent<HTMLDivElement>): void => {
     const blockType =
@@ -255,7 +276,6 @@ function CanvasGrid({
       onPointerUp={handleCanvasPointerUp}
       onPointerCancel={handleCanvasPointerCancel}
       onLostPointerCapture={handleCanvasLostPointerCapture}
-      onWheel={handleCanvasWheel}
       onDragOver={handleCanvasDragOver}
       onDrop={handleCanvasDrop}
       className={`relative h-full min-h-0 w-full rounded border border-(--kb-border) bg-(--kb-editor-canvas-bg) ${isDraggingBlocks ? 'overflow-visible' : 'overflow-hidden'} ${isPanningCanvas || isDraggingBlocks ? 'cursor-grabbing' : 'cursor-grab'}`}

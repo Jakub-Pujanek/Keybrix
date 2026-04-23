@@ -92,11 +92,11 @@ describe('editor.store mouse picker', () => {
   })
 
   it('ignores concurrent stop calls and preserves coordinate commit', async () => {
-    let resolveStop: (() => void) | null = null
+    const resolveStopRef: { current: (() => void) | null } = { current: null }
     mousePickerStopMock.mockImplementationOnce(
       () =>
         new Promise<boolean>((resolve) => {
-          resolveStop = () => resolve(true)
+          resolveStopRef.current = () => resolve(true)
         })
     )
 
@@ -113,7 +113,9 @@ describe('editor.store mouse picker', () => {
       timestamp: '2026-04-21T00:00:00.000Z'
     })
 
-    resolveStop?.()
+    if (resolveStopRef.current) {
+      resolveStopRef.current()
+    }
     await Promise.all([firstStop, secondStop])
 
     const node = useEditorStore.getState().nodes[0]

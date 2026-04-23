@@ -20,6 +20,7 @@ import {
   SessionCheckResultSchema,
   SessionDiagnosticsSchema,
   ToggleMacroInputSchema,
+  UpdaterStateSchema,
   UpdateAppSettingsInputSchema,
   type SessionType
 } from '../shared/api'
@@ -38,6 +39,7 @@ import {
   readSessionEnvSnapshot
 } from './services/session-detection.service'
 import { mousePickerService } from './services/mouse-picker.service'
+import { autoUpdateService } from './services/auto-update.service'
 import { t } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
@@ -516,6 +518,18 @@ const registerIpcHandlers = (): void => {
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.updater.installNow, () => {
+    try {
+      return autoUpdateService.installNow()
+    } catch (error) {
+      structuredLogger.error('Updater installNow failed.', {
+        scope: 'ipc.updater.installNow',
+        reason: getErrorMessage(error)
+      })
+      return false
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.macros.run, async (_, input) => {
     const correlationId = globalThis.crypto.randomUUID()
     const fallbackRunId = globalThis.crypto.randomUUID()
@@ -756,9 +770,17 @@ app.whenReady().then(() => {
     })
   )
 
+  runtimeDisposers.push(
+    autoUpdateService.onStateChange((state) => {
+      const parsed = UpdaterStateSchema.parse(state)
+      broadcastToRenderers(IPC_CHANNELS.updater.stateChanged, parsed)
+    })
+  )
+
   systemHealthService.start()
   registerIpcHandlers()
   createWindow()
+  autoUpdateService.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -774,6 +796,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   isQuitting = true
   systemHealthService.stop()
+  autoUpdateService.stop()
   mousePickerService.dispose()
   shortcutManager.dispose()
   for (const dispose of runtimeDisposers.splice(0)) {

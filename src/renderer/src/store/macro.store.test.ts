@@ -42,6 +42,10 @@ const createApiMock = (
     onPreviewUpdate: vi.fn(() => vi.fn()),
     onCoordinateSelected: vi.fn(() => vi.fn())
   },
+  updater: {
+    installNow: vi.fn(async () => false),
+    onStateChange: vi.fn(() => vi.fn())
+  },
   system: {
     getSessionInfo: vi.fn(async () => {
       throw new Error('not used in this test')

@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
-  coerceAppSettings,
-  DashboardStatsSchema,
+  DEFAULT_APP_SETTINGS,
   IPC_CHANNELS,
   ManualRunReasonCodeSchema,
-  UpdateAppSettingsInputSchema,
   type ActivityLog,
+  type AppSettings,
+  type DashboardStats,
   type MousePickerPoint,
   type MousePickerPreview,
   type SessionCheckResult,
@@ -16,12 +16,24 @@ import {
   type ManualRunReasonCode,
   type Macro,
   type KeybrixApi,
+  type UpdaterState,
   type RuntimeSessionInfo,
-  type SessionType
+  type SessionType,
+  type UpdateAppSettingsInput
 } from '../shared/api'
 
 const MACRO_STATUSES = new Set<Macro['status']>(['RUNNING', 'IDLE', 'ACTIVE', 'PAUSED'])
 const LOG_LEVELS = new Set<ActivityLog['level']>(['RUN', 'TRIG', 'INFO', 'WARN', 'ERR'])
+const THEME_MODES = new Set<AppSettings['themeMode']>(['DARK', 'LIGHT'])
+const ACCENT_COLORS = new Set<AppSettings['accentColor']>(['blue', 'orange', 'violet', 'green'])
+const UPDATER_STATUSES = new Set<UpdaterState['status']>([
+  'IDLE',
+  'CHECKING',
+  'AVAILABLE',
+  'DOWNLOADING',
+  'DOWNLOADED',
+  'ERROR'
+])
 const MANUAL_RUN_REASON_CODES = new Set<ManualRunReasonCode>(ManualRunReasonCodeSchema.options)
 const SESSION_TYPES = new Set<SessionType>(['WAYLAND', 'X11', 'UNKNOWN'])
 const SESSION_DETECTION_SOURCES = new Set<SessionDetectionSource>([
@@ -44,6 +56,201 @@ const isManualRunReasonCode = (value: unknown): value is ManualRunReasonCode => 
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const coerceDashboardStats = (value: unknown): DashboardStats => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid dashboard stats payload.')
+  }
+
+  const totalAutomations = value['totalAutomations']
+  const timeSavedMinutes = value['timeSavedMinutes']
+  const successRate = value['successRate']
+  const activeNow = value['activeNow']
+
+  if (
+    typeof totalAutomations !== 'number' ||
+    !Number.isFinite(totalAutomations) ||
+    !Number.isInteger(totalAutomations) ||
+    totalAutomations < 0
+  ) {
+    throw new Error('Invalid dashboard totalAutomations field.')
+  }
+
+  if (
+    typeof timeSavedMinutes !== 'number' ||
+    !Number.isFinite(timeSavedMinutes) ||
+    !Number.isInteger(timeSavedMinutes) ||
+    timeSavedMinutes < 0
+  ) {
+    throw new Error('Invalid dashboard timeSavedMinutes field.')
+  }
+
+  if (
+    typeof successRate !== 'number' ||
+    !Number.isFinite(successRate) ||
+    successRate < 0 ||
+    successRate > 100
+  ) {
+    throw new Error('Invalid dashboard successRate field.')
+  }
+
+  if (
+    typeof activeNow !== 'number' ||
+    !Number.isFinite(activeNow) ||
+    !Number.isInteger(activeNow) ||
+    activeNow < 0
+  ) {
+    throw new Error('Invalid dashboard activeNow field.')
+  }
+
+  return {
+    totalAutomations,
+    timeSavedMinutes,
+    successRate,
+    activeNow
+  }
+}
+
+const coerceAppSettingsPayload = (value: unknown): AppSettings => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid app settings payload.')
+  }
+
+  const launchAtStartup = value['launchAtStartup']
+  const minimizeToTrayOnClose = value['minimizeToTrayOnClose']
+  const notifyOnMacroRun = value['notifyOnMacroRun']
+  const language = value['language']
+  const globalMaster = value['globalMaster']
+  const delayMs = value['delayMs']
+  const stopOnError = value['stopOnError']
+  const themeMode = value['themeMode']
+  const accentColor = value['accentColor']
+
+  if (typeof launchAtStartup !== 'boolean') {
+    throw new Error('Invalid app settings launchAtStartup field.')
+  }
+  if (typeof minimizeToTrayOnClose !== 'boolean') {
+    throw new Error('Invalid app settings minimizeToTrayOnClose field.')
+  }
+  if (typeof notifyOnMacroRun !== 'boolean') {
+    throw new Error('Invalid app settings notifyOnMacroRun field.')
+  }
+  if (typeof language !== 'string' || language.length === 0) {
+    throw new Error('Invalid app settings language field.')
+  }
+  if (typeof globalMaster !== 'boolean') {
+    throw new Error('Invalid app settings globalMaster field.')
+  }
+  if (
+    typeof delayMs !== 'number' ||
+    !Number.isInteger(delayMs) ||
+    delayMs < 0 ||
+    delayMs > 10_000
+  ) {
+    throw new Error('Invalid app settings delayMs field.')
+  }
+  if (typeof stopOnError !== 'boolean') {
+    throw new Error('Invalid app settings stopOnError field.')
+  }
+  if (typeof themeMode !== 'string' || !THEME_MODES.has(themeMode as AppSettings['themeMode'])) {
+    throw new Error('Invalid app settings themeMode field.')
+  }
+  if (
+    typeof accentColor !== 'string' ||
+    !ACCENT_COLORS.has(accentColor as AppSettings['accentColor'])
+  ) {
+    throw new Error('Invalid app settings accentColor field.')
+  }
+
+  return {
+    launchAtStartup,
+    minimizeToTrayOnClose,
+    notifyOnMacroRun,
+    language: language as AppSettings['language'],
+    globalMaster,
+    delayMs,
+    stopOnError,
+    themeMode: themeMode as AppSettings['themeMode'],
+    accentColor: accentColor as AppSettings['accentColor']
+  }
+}
+
+const coerceUpdateAppSettingsPatch = (value: unknown): UpdateAppSettingsInput => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid app settings update payload.')
+  }
+
+  const next: UpdateAppSettingsInput = {}
+  const entries = Object.entries(value)
+  if (entries.length === 0) {
+    throw new Error('At least one settings field must be provided.')
+  }
+
+  for (const [key, fieldValue] of entries) {
+    if (!(key in DEFAULT_APP_SETTINGS)) {
+      throw new Error(`Unknown settings field '${key}'.`)
+    }
+
+    if (
+      key === 'launchAtStartup' ||
+      key === 'minimizeToTrayOnClose' ||
+      key === 'notifyOnMacroRun' ||
+      key === 'globalMaster' ||
+      key === 'stopOnError'
+    ) {
+      if (typeof fieldValue !== 'boolean') {
+        throw new Error(`Invalid settings field '${key}'.`)
+      }
+      next[key] = fieldValue
+      continue
+    }
+
+    if (key === 'language') {
+      if (typeof fieldValue !== 'string' || fieldValue.length === 0) {
+        throw new Error("Invalid settings field 'language'.")
+      }
+      next.language = fieldValue as UpdateAppSettingsInput['language']
+      continue
+    }
+
+    if (key === 'delayMs') {
+      if (
+        typeof fieldValue !== 'number' ||
+        !Number.isFinite(fieldValue) ||
+        !Number.isInteger(fieldValue) ||
+        fieldValue < 0 ||
+        fieldValue > 10_000
+      ) {
+        throw new Error("Invalid settings field 'delayMs'.")
+      }
+      next.delayMs = fieldValue
+      continue
+    }
+
+    if (key === 'themeMode') {
+      if (
+        typeof fieldValue !== 'string' ||
+        !THEME_MODES.has(fieldValue as AppSettings['themeMode'])
+      ) {
+        throw new Error("Invalid settings field 'themeMode'.")
+      }
+      next.themeMode = fieldValue as UpdateAppSettingsInput['themeMode']
+      continue
+    }
+
+    if (key === 'accentColor') {
+      if (
+        typeof fieldValue !== 'string' ||
+        !ACCENT_COLORS.has(fieldValue as AppSettings['accentColor'])
+      ) {
+        throw new Error("Invalid settings field 'accentColor'.")
+      }
+      next.accentColor = fieldValue as UpdateAppSettingsInput['accentColor']
+    }
+  }
+
+  return next
 }
 
 const coerceActivityLog = (value: unknown): ActivityLog | null => {
@@ -122,6 +329,43 @@ const coerceMousePickerPreview = (value: unknown): MousePickerPreview | null => 
   return {
     ...point,
     isActive
+  }
+}
+
+const coerceUpdaterState = (value: unknown): UpdaterState | null => {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const status = value['status']
+  const version = value['version']
+  const progressPercent = value['progressPercent']
+  const message = value['message']
+
+  if (typeof status !== 'string' || !UPDATER_STATUSES.has(status as UpdaterState['status'])) {
+    return null
+  }
+  if (version !== undefined && (typeof version !== 'string' || version.length === 0)) {
+    return null
+  }
+  if (
+    progressPercent !== undefined &&
+    (typeof progressPercent !== 'number' ||
+      !Number.isFinite(progressPercent) ||
+      progressPercent < 0 ||
+      progressPercent > 100)
+  ) {
+    return null
+  }
+  if (message !== undefined && (typeof message !== 'string' || message.length === 0)) {
+    return null
+  }
+
+  return {
+    status: status as UpdaterState['status'],
+    version: version as string | undefined,
+    progressPercent: progressPercent as number | undefined,
+    message: message as string | undefined
   }
 }
 
@@ -623,7 +867,7 @@ const api: KeybrixApi = {
   stats: {
     getDashboardStats: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.stats.get)
-      return DashboardStatsSchema.parse(result)
+      return coerceDashboardStats(result)
     }
   },
   logs: {
@@ -733,6 +977,28 @@ const api: KeybrixApi = {
       }
     }
   },
+  updater: {
+    installNow: async () => {
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.updater.installNow)
+      return result === true
+    },
+    onStateChange: (callback) => {
+      const listener = (_event: unknown, payload: unknown): void => {
+        const parsed = coerceUpdaterState(payload)
+        if (!parsed) {
+          console.warn('[preload] updater.onStateChange dropped malformed payload.', { payload })
+          return
+        }
+
+        callback(parsed)
+      }
+
+      ipcRenderer.on(IPC_CHANNELS.updater.stateChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.updater.stateChanged, listener)
+      }
+    }
+  },
   system: {
     getSessionInfo: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.system.getSessionInfo)
@@ -823,12 +1089,12 @@ const api: KeybrixApi = {
   settings: {
     get: async () => {
       const result = await ipcRenderer.invoke(IPC_CHANNELS.settings.get)
-      return coerceAppSettings(result)
+      return coerceAppSettingsPayload(result)
     },
     update: async (input) => {
-      const parsed = UpdateAppSettingsInputSchema.parse(input)
+      const parsed = coerceUpdateAppSettingsPatch(input)
       const result = await ipcRenderer.invoke(IPC_CHANNELS.settings.update, parsed)
-      return coerceAppSettings(result)
+      return coerceAppSettingsPayload(result)
     }
   }
 }

@@ -164,7 +164,14 @@
     "quit": "Quit"
   },
   "notifications": {
-    "macroStarted": "Macro '{{macroName}}' started."
+    "macroStarted": "Macro '{{macroName}}' started.",
+    "updateReady": {
+      "title": "Update {{version}} is ready",
+      "body": "A new version has been downloaded and is ready to install.",
+      "installNow": "Install now",
+      "later": "Later",
+      "close": "Close"
+    }
   },
   "wayland": {
     "banner": {

@@ -220,6 +220,24 @@ export const MousePickerPreviewSchema = MousePickerPointSchema.extend({
 })
 export type MousePickerPreview = z.infer<typeof MousePickerPreviewSchema>
 
+export const UpdaterStatusSchema = z.enum([
+  'IDLE',
+  'CHECKING',
+  'AVAILABLE',
+  'DOWNLOADING',
+  'DOWNLOADED',
+  'ERROR'
+])
+export type UpdaterStatus = z.infer<typeof UpdaterStatusSchema>
+
+export const UpdaterStateSchema = z.object({
+  status: UpdaterStatusSchema,
+  version: z.string().min(1).optional(),
+  progressPercent: z.number().min(0).max(100).optional(),
+  message: z.string().min(1).optional()
+})
+export type UpdaterState = z.infer<typeof UpdaterStateSchema>
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   launchAtStartup: true,
   minimizeToTrayOnClose: true,
@@ -317,6 +335,10 @@ export const IPC_CHANNELS = {
     previewUpdate: 'mouse-picker:preview-update',
     coordinateSelected: 'mouse-picker:coordinate-selected'
   },
+  updater: {
+    stateChanged: 'updater:state-changed',
+    installNow: 'updater:install-now'
+  },
   system: {
     getSessionInfo: 'system:get-session-info',
     getSessionDiagnostics: 'system:get-session-diagnostics',
@@ -358,6 +380,10 @@ export interface KeybrixApi {
     stop: () => Promise<boolean>
     onPreviewUpdate: (callback: (preview: MousePickerPreview) => void) => () => void
     onCoordinateSelected: (callback: (point: MousePickerPoint) => void) => () => void
+  }
+  updater: {
+    installNow: () => Promise<boolean>
+    onStateChange: (callback: (state: UpdaterState) => void) => () => void
   }
   system: {
     getSessionInfo: () => Promise<RuntimeSessionInfo>

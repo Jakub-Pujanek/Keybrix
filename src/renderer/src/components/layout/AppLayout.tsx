@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import SessionStatusBanner from '../composites/system/SessionStatusBanner'
+import UpdateReadyToast from '../composites/system/UpdateReadyToast'
 import { useAppStore } from '../../store'
 
 function AppLayout({ children }: PropsWithChildren): React.JSX.Element {
@@ -22,6 +23,7 @@ function AppLayout({ children }: PropsWithChildren): React.JSX.Element {
         </div>
       </div>
       <SessionStatusBanner />
+      <UpdateReadyToast />
     </div>
   )
 }

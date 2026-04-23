@@ -1,12 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
-import { DEFAULT_APP_SETTINGS, type KeybrixApi, type RuntimeSessionInfo } from '../../shared/api'
+import {
+  DEFAULT_APP_SETTINGS,
+  type KeybrixApi,
+  type RuntimeSessionInfo,
+  type UpdaterState
+} from '../../shared/api'
 import {
   useActivityStore,
   useAppStore,
   useMacroStore,
   useSessionStore,
-  useSettingsStore
+  useSettingsStore,
+  useUpdaterStore
 } from './store'
 
 let emitRealtimeLog: ((message: string) => void) | null = null
@@ -21,6 +27,7 @@ let nextRefreshSessionFactory:
       changed: boolean
     }>)
   | null = null
+let emitUpdaterState: ((state: UpdaterState) => void) | null = null
 
 const buildSessionInfo = (sessionType: RuntimeSessionInfo['sessionType']): RuntimeSessionInfo => ({
   sessionType,
@@ -90,6 +97,21 @@ const mockApi: KeybrixApi = {
 
       return () => {
         emitRealtimeLog = null
+      }
+    }
+  },
+  mousePicker: {
+    start: async () => true,
+    stop: async () => true,
+    onPreviewUpdate: () => () => {},
+    onCoordinateSelected: () => () => {}
+  },
+  updater: {
+    installNow: async () => true,
+    onStateChange: (callback) => {
+      emitUpdaterState = callback
+      return () => {
+        emitUpdaterState = null
       }
     }
   },
@@ -185,6 +207,7 @@ describe('App dashboard', () => {
     nextRefreshSessionFactory = null
     window.api = mockApi
     emitRealtimeLog = null
+    emitUpdaterState = null
   })
 
   afterEach(() => {
@@ -217,6 +240,36 @@ describe('App dashboard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('tick')).toBeInTheDocument()
+    })
+  })
+
+  it('shows update toast after downloaded state', async () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...DEFAULT_APP_SETTINGS,
+        language: 'ENGLISH'
+      },
+      isLoading: false,
+      language: 'ENGLISH'
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(emitUpdaterState).not.toBeNull()
+    })
+
+    act(() => {
+      emitUpdaterState?.({
+        status: 'DOWNLOADED',
+        version: '1.0.1'
+      })
+    })
+
+    await waitFor(() => {
+      expect(useUpdaterStore.getState().isToastVisible).toBe(true)
+      expect(useUpdaterStore.getState().updaterState.status).toBe('DOWNLOADED')
+      expect(useUpdaterStore.getState().updaterState.version).toBe('1.0.1')
     })
   })
 

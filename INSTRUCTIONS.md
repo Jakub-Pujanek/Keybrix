@@ -125,5 +125,11 @@ W projekcie aktywna jest zasada explicit-function-return-type, wiec funkcje komp
 - Nie zostawiaj listenerow/timerow bez cleanup.
 - Nie dodawaj obejsc bez walidacji typow i testu.
 
+## 11. Release 1.0.0
+- Publikacja ma byc jako GitHub Draft Release.
+- Nie wdrazamy code-signingu dla 1.0.0.
+- Aktualizacje opieraja sie o electron-updater i release metadata z GitHub Releases.
+- Toast aktualizacji ma pojawiac sie dopiero po `update-downloaded`.
+
 ---
 Najpierw architektura, potem wyglad, potem testy.

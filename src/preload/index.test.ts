@@ -31,11 +31,22 @@ describe('preload api bridge', () => {
       getRecent: () => Promise<unknown[]>
       onNewLog: (callback: (log: unknown) => void) => () => void
     }
+    stats: {
+      getDashboardStats: () => Promise<unknown>
+    }
+    settings: {
+      get: () => Promise<unknown>
+      update: (input: Record<string, unknown>) => Promise<unknown>
+    }
     mousePicker: {
       start: () => Promise<boolean>
       stop: () => Promise<boolean>
       onPreviewUpdate: (callback: (payload: unknown) => void) => () => void
       onCoordinateSelected: (callback: (payload: unknown) => void) => () => void
+    }
+    updater: {
+      installNow: () => Promise<boolean>
+      onStateChange: (callback: (state: unknown) => void) => () => void
     }
     macros: {
       getAll: () => Promise<unknown[]>
@@ -57,11 +68,22 @@ describe('preload api bridge', () => {
         getRecent: () => Promise<unknown[]>
         onNewLog: (callback: (log: unknown) => void) => () => void
       }
+      stats: {
+        getDashboardStats: () => Promise<unknown>
+      }
+      settings: {
+        get: () => Promise<unknown>
+        update: (input: Record<string, unknown>) => Promise<unknown>
+      }
       mousePicker: {
         start: () => Promise<boolean>
         stop: () => Promise<boolean>
         onPreviewUpdate: (callback: (payload: unknown) => void) => () => void
         onCoordinateSelected: (callback: (payload: unknown) => void) => () => void
+      }
+      updater: {
+        installNow: () => Promise<boolean>
+        onStateChange: (callback: (state: unknown) => void) => () => void
       }
       macros: {
         getAll: () => Promise<unknown[]>
@@ -341,6 +363,117 @@ describe('preload api bridge', () => {
     expect(warnSpy).toHaveBeenCalled()
 
     warnSpy.mockRestore()
+  })
+
+  it('maps updater install and subscription with payload coercion', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+    invokeMock.mockResolvedValueOnce(true)
+
+    const stateCallback = vi.fn()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await import('./index')
+    const api = getApi()
+
+    const off = api.updater.onStateChange(stateCallback)
+    const installed = await api.updater.installNow()
+
+    expect(installed).toBe(true)
+    expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.updater.installNow)
+    expect(onMock).toHaveBeenCalledWith(IPC_CHANNELS.updater.stateChanged, expect.any(Function))
+
+    const listener = onMock.mock.calls.find(
+      (call) => call[0] === IPC_CHANNELS.updater.stateChanged
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+
+    expect(listener).toBeDefined()
+
+    listener?.(null, {
+      status: 'DOWNLOADED',
+      version: '1.0.1'
+    })
+    listener?.(null, {
+      status: 'DOWNLOADING',
+      progressPercent: 64.5
+    })
+    listener?.(null, {
+      status: 'BROKEN',
+      progressPercent: 10
+    })
+
+    expect(stateCallback).toHaveBeenCalledTimes(2)
+    expect(stateCallback).toHaveBeenNthCalledWith(1, {
+      status: 'DOWNLOADED',
+      version: '1.0.1',
+      progressPercent: undefined,
+      message: undefined
+    })
+    expect(stateCallback).toHaveBeenNthCalledWith(2, {
+      status: 'DOWNLOADING',
+      version: undefined,
+      progressPercent: 64.5,
+      message: undefined
+    })
+    expect(warnSpy).toHaveBeenCalled()
+
+    off()
+    expect(removeListenerMock).toHaveBeenCalledWith(IPC_CHANNELS.updater.stateChanged, listener)
+    warnSpy.mockRestore()
+  })
+
+  it('coerces dashboard stats payload and rejects malformed payload', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+
+    invokeMock
+      .mockResolvedValueOnce({
+        totalAutomations: 7,
+        timeSavedMinutes: 130,
+        successRate: 97.5,
+        activeNow: 2
+      })
+      .mockResolvedValueOnce({
+        totalAutomations: 7,
+        timeSavedMinutes: 130,
+        successRate: 120,
+        activeNow: 2
+      })
+
+    await import('./index')
+    const api = getApi()
+
+    await expect(api.stats.getDashboardStats()).resolves.toEqual({
+      totalAutomations: 7,
+      timeSavedMinutes: 130,
+      successRate: 97.5,
+      activeNow: 2
+    })
+    await expect(api.stats.getDashboardStats()).rejects.toThrow()
+  })
+
+  it('validates settings update patch payload before invoke', async () => {
+    ;(process as { contextIsolated?: boolean }).contextIsolated = false
+
+    invokeMock.mockResolvedValue({
+      launchAtStartup: true,
+      minimizeToTrayOnClose: true,
+      notifyOnMacroRun: true,
+      language: 'POLSKI',
+      globalMaster: true,
+      delayMs: 200,
+      stopOnError: true,
+      themeMode: 'DARK',
+      accentColor: 'blue'
+    })
+
+    await import('./index')
+    const api = getApi()
+
+    await expect(api.settings.update({ delayMs: 200 })).resolves.toEqual(
+      expect.objectContaining({ delayMs: 200 })
+    )
+    await expect(api.settings.update({})).rejects.toThrow()
+    await expect(api.settings.update({ delayMs: -1 })).rejects.toThrow()
+    await expect(api.settings.update({ unknownField: true })).rejects.toThrow()
   })
 
   it('invokes macros.run channel for manual run', async () => {
