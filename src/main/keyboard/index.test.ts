@@ -167,4 +167,29 @@ describe('ShortcutManager', () => {
     expect(registered).toBe(false)
     expect(state.callbacks.size).toBe(0)
   })
+
+  it('suppresses shortcut callbacks while capture mode is active', () => {
+    const { state, registry } = createRegistry()
+    const manager = new ShortcutManager(registry)
+    const onTrigger = vi.fn()
+
+    expect(
+      manager.registerMacro({
+        macroId: 'm1',
+        shortcut: 'CTRL+SHIFT+K',
+        onTrigger
+      })
+    ).toBe(true)
+
+    const callback = state.callbacks.get('CommandOrControl+Shift+K')
+    expect(callback).toBeDefined()
+
+    manager.setCaptureActive(true)
+    callback?.()
+    expect(onTrigger).not.toHaveBeenCalled()
+
+    manager.setCaptureActive(false)
+    callback?.()
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+  })
 })

@@ -150,7 +150,11 @@ const mockApi: KeybrixApi = {
     onMacroStatusChange: () => () => {}
   },
   keyboard: {
-    recordShortcut: async () => true
+    recordShortcut: async () => ({
+      success: true,
+      reasonCode: 'OK'
+    }),
+    setCaptureActive: async () => true
   },
   settings: {
     get: async () => ({

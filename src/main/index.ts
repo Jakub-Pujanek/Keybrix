@@ -15,8 +15,10 @@ import {
   ManualRunResultSchema,
   MacroSchema,
   RecordShortcutInputSchema,
+  RecordShortcutResultSchema,
   RunMacroRequestSchema,
   SaveMacroInputSchema,
+  ShortcutCaptureStateInputSchema,
   SessionCheckResultSchema,
   SessionDiagnosticsSchema,
   ToggleMacroInputSchema,
@@ -369,10 +371,28 @@ const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.keyboard.recordShortcut, (_, input) => {
     try {
       const parsed = RecordShortcutInputSchema.parse(input)
-      return macroService.reserveShortcut(parsed)
+      const result = macroService.reserveShortcut(parsed)
+      return RecordShortcutResultSchema.parse(result)
     } catch (error) {
       structuredLogger.error('Keyboard recordShortcut failed.', {
         scope: 'ipc.keyboard.recordShortcut',
+        reason: getErrorMessage(error),
+        details: {
+          input
+        }
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.keyboard.setCaptureActive, (_, input) => {
+    try {
+      const parsed = ShortcutCaptureStateInputSchema.parse(input)
+      shortcutManager.setCaptureActive(parsed.active)
+      return true
+    } catch (error) {
+      structuredLogger.error('Keyboard setCaptureActive failed.', {
+        scope: 'ipc.keyboard.setCaptureActive',
         reason: getErrorMessage(error),
         details: {
           input

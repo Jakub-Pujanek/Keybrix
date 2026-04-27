@@ -274,6 +274,7 @@ function EditorScreen(): React.JSX.Element {
   const isRecordingShortcut = useEditorStore((state) => state.isRecordingShortcut)
   const recordingSource = useEditorStore((state) => state.recordingSource)
   const recordingNodeId = useEditorStore((state) => state.recordingNodeId)
+  const shortcutRecordingError = useEditorStore((state) => state.shortcutRecordingError)
   const heldKeys = useEditorStore((state) => state.heldKeys)
 
   const loadEditorMacro = useEditorStore((state) => state.loadEditorMacro)
@@ -310,6 +311,23 @@ function EditorScreen(): React.JSX.Element {
       .replace(/(Left|Right)/g, '')
       .replace('Key', '')
   }, [heldKeys])
+
+  const shortcutErrorMessage = useMemo(() => {
+    if (!shortcutRecordingError) {
+      return null
+    }
+
+    if (shortcutRecordingError.reasonCode === 'CONFLICT') {
+      return tx('editor.shortcut.errors.conflictTakenByMacro', {
+        keys: shortcutRecordingError.keys,
+        macroName: shortcutRecordingError.conflictMacroName ?? 'other macro'
+      })
+    }
+
+    return tx('editor.shortcut.errors.unsupportedFormat', {
+      keys: shortcutRecordingError.keys
+    })
+  }, [shortcutRecordingError, tx])
 
   const {
     snapPreviewParentId,
@@ -428,6 +446,7 @@ function EditorScreen(): React.JSX.Element {
     return () => {
       void stopMousePicker().catch(() => undefined)
       clearMousePickerPreview()
+      void window.api.keyboard.setCaptureActive(false).catch(() => undefined)
     }
   }, [clearMousePickerPreview, stopMousePicker])
 
@@ -441,6 +460,7 @@ function EditorScreen(): React.JSX.Element {
         shortcut={shortcut}
         isRecording={isRecordingShortcut && recordingSource === 'topbar'}
         pressedPreview={pressedPreview}
+        shortcutError={shortcutErrorMessage}
         onMacroTitleChange={setMacroTitle}
         onStartShortcutRecording={() => startShortcutRecording('topbar')}
         onCancelShortcutRecording={cancelShortcutRecording}

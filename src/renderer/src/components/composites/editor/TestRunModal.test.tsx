@@ -66,4 +66,36 @@ describe('TestRunModal i18n', () => {
     expect(screen.getByText('Idle')).toBeInTheDocument()
     expect(screen.getByText('No logs yet. Run macro test.')).toBeInTheDocument()
   })
+
+  it('renders logs inside fixed-height scrollable container', () => {
+    setLanguage('ENGLISH')
+
+    render(
+      <TestRunModal
+        isOpen
+        isRunning={false}
+        status="SUCCESS"
+        sessionId={null}
+        reasonCode={null}
+        sandboxText=""
+        logs={Array.from({ length: 30 }, (_, index) => ({
+          id: `log-${index}`,
+          timestamp: '[10:00:00]',
+          level: 'INFO' as const,
+          message: `entry ${index}`
+        }))}
+        error={null}
+        onSandboxTextChange={() => undefined}
+        onRun={async () => undefined}
+        onStop={async () => undefined}
+        onClose={() => undefined}
+      />
+    )
+
+    const logsList = screen.getByTestId('test-run-modal-logs-list')
+    expect(logsList.className).toContain('overflow-y-auto')
+
+    const panel = logsList.closest('section')
+    expect(panel?.className).toContain('h-[min(42vh,22rem)]')
+  })
 })

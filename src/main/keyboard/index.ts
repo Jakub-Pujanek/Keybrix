@@ -140,6 +140,7 @@ export class ShortcutManager {
   private readonly registry: ShortcutRegistry
   private readonly macroShortcutMap = new Map<string, string>()
   private readonly shortcutMacroMap = new Map<string, string>()
+  private captureActive = false
 
   constructor(registry: ShortcutRegistry = globalShortcut) {
     this.registry = registry
@@ -193,7 +194,13 @@ export class ShortcutManager {
 
     let registered = false
     try {
-      registered = this.registry.register(accelerator, input.onTrigger)
+      registered = this.registry.register(accelerator, () => {
+        if (this.captureActive) {
+          return
+        }
+
+        input.onTrigger()
+      })
     } catch {
       registered = false
     }
@@ -224,6 +231,10 @@ export class ShortcutManager {
 
     this.macroShortcutMap.clear()
     this.shortcutMacroMap.clear()
+  }
+
+  setCaptureActive(active: boolean): void {
+    this.captureActive = active
   }
 
   dispose(): void {

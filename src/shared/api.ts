@@ -147,9 +147,25 @@ export type RuntimeMacroDocument = z.infer<typeof RuntimeMacroDocumentSchema>
 
 export const RecordShortcutInputSchema = z.object({
   keys: z.string().min(1),
-  source: z.enum(['topbar', 'start-block', 'press-key-block', 'execute-shortcut-block'])
+  source: z.enum(['topbar', 'start-block', 'press-key-block', 'execute-shortcut-block']),
+  macroId: z.string().min(1).optional()
 })
 export type RecordShortcutInput = z.infer<typeof RecordShortcutInputSchema>
+
+export const RecordShortcutResultReasonSchema = z.enum(['OK', 'UNSUPPORTED_FORMAT', 'CONFLICT'])
+export type RecordShortcutResultReason = z.infer<typeof RecordShortcutResultReasonSchema>
+
+export const RecordShortcutResultSchema = z.object({
+  success: z.boolean(),
+  reasonCode: RecordShortcutResultReasonSchema,
+  conflictMacroName: z.string().min(1).optional()
+})
+export type RecordShortcutResult = z.infer<typeof RecordShortcutResultSchema>
+
+export const ShortcutCaptureStateInputSchema = z.object({
+  active: z.boolean()
+})
+export type ShortcutCaptureStateInput = z.infer<typeof ShortcutCaptureStateInputSchema>
 
 export const AppSettingsSchema = z.object({
   launchAtStartup: z.boolean(),
@@ -347,7 +363,8 @@ export const IPC_CHANNELS = {
     macroStatusChanged: 'system:macro-status-changed'
   },
   keyboard: {
-    recordShortcut: 'keyboard:record-shortcut'
+    recordShortcut: 'keyboard:record-shortcut',
+    setCaptureActive: 'keyboard:set-capture-active'
   },
   settings: {
     get: 'settings:get',
@@ -393,7 +410,8 @@ export interface KeybrixApi {
     onMacroStatusChange: (callback: (id: string, newStatus: MacroStatus) => void) => () => void
   }
   keyboard: {
-    recordShortcut: (input: RecordShortcutInput) => Promise<boolean>
+    recordShortcut: (input: RecordShortcutInput) => Promise<RecordShortcutResult>
+    setCaptureActive: (active: boolean) => Promise<boolean>
   }
   settings: {
     get: () => Promise<AppSettings>

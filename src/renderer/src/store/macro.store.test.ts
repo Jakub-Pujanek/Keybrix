@@ -61,7 +61,11 @@ const createApiMock = (
     onMacroStatusChange
   },
   keyboard: {
-    recordShortcut: vi.fn(async () => true)
+    recordShortcut: vi.fn(async () => ({
+      success: true,
+      reasonCode: 'OK' as const
+    })),
+    setCaptureActive: vi.fn(async () => true)
   },
   settings: {
     get: vi.fn(async () => {

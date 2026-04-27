@@ -184,8 +184,20 @@ export class MacroRunner {
           }
         })
 
-        if (!success && settings.stopOnError) {
-          return { success: false, reasonCode: 'RUNNER_FAILED' }
+        if (!success) {
+          if (shouldAbort?.()) {
+            return { success: false, reasonCode: 'ABORTED' }
+          }
+
+          if (!isGlobalMasterEnabled()) {
+            return { success: false, reasonCode: 'GLOBAL_MASTER_OFF' }
+          }
+
+          if (settings.stopOnError) {
+            return { success: false, reasonCode: 'RUNNER_FAILED' }
+          }
+
+          continue
         }
 
         if (success) {

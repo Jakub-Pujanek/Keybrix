@@ -22,6 +22,12 @@ export type MacroServiceRunResult = {
     | 'GLOBAL_MASTER_OFF'
 }
 
+export type MacroServiceReserveShortcutResult = {
+  success: boolean
+  reasonCode: 'OK' | 'UNSUPPORTED_FORMAT' | 'CONFLICT'
+  conflictMacroName?: string
+}
+
 export class MacroService {
   private readonly statusListeners = new Set<MacroStatusListener>()
   private readonly activeRuns = new Set<string>()
@@ -514,14 +520,23 @@ export class MacroService {
   reserveShortcut(input: {
     keys: string
     source: 'topbar' | 'start-block' | 'press-key-block' | 'execute-shortcut-block'
-  }): boolean {
+    macroId?: string
+  }): MacroServiceReserveShortcutResult {
     const normalized = normalizeShortcut(input.keys)
     if (!shortcutManager.isShortcutFormatSupported(normalized)) {
-      return false
+      return {
+        success: false,
+        reasonCode: 'UNSUPPORTED_FORMAT'
+      }
     }
 
-    if (this.hasShortcutConflict(normalized)) {
-      return false
+    const conflictingMacro = this.findShortcutConflict(normalized, input.macroId)
+    if (conflictingMacro) {
+      return {
+        success: false,
+        reasonCode: 'CONFLICT',
+        conflictMacroName: conflictingMacro.name
+      }
     }
 
     logsService.append({
@@ -529,14 +544,28 @@ export class MacroService {
       message: `Shortcut '${normalized}' reserved from '${input.source}'.`
     })
 
-    return true
+    return {
+      success: true,
+      reasonCode: 'OK'
+    }
   }
 
   private hasShortcutConflict(shortcut: string, exceptId?: string): boolean {
-    return this.getAll().some((macro) => {
-      if (exceptId && macro.id === exceptId) return false
-      return normalizeShortcut(macro.shortcut) === shortcut
-    })
+    return this.findShortcutConflict(shortcut, exceptId) !== null
+  }
+
+  private findShortcutConflict(shortcut: string, exceptId?: string): Macro | null {
+    for (const macro of this.getAll()) {
+      if (exceptId && macro.id === exceptId) {
+        continue
+      }
+
+      if (normalizeShortcut(macro.shortcut) === shortcut) {
+        return macro
+      }
+    }
+
+    return null
   }
 
   onStatusChange(listener: MacroStatusListener): () => void {

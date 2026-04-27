@@ -534,6 +534,84 @@ describe('MacroRunner', () => {
     expect(result.reasonCode).toBe('COMMAND_TIMEOUT')
   })
 
+  it('aborts WAIT command in the middle of delay window', async () => {
+    vi.useFakeTimers()
+    const logs: string[] = []
+    let shouldAbort = false
+
+    const runPromise = macroRunner.runMacro({
+      macro: {
+        id: 'macro-wait-abort-mid-command',
+        name: 'Wait Abort Mid Command',
+        shortcut: 'CTRL+W',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'WAIT', payload: { durationMs: 1000 } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: ({ message }) => {
+        logs.push(message)
+      },
+      isGlobalMasterEnabled: () => true,
+      shouldAbort: () => shouldAbort
+    })
+
+    await vi.advanceTimersByTimeAsync(35)
+    shouldAbort = true
+    await vi.advanceTimersByTimeAsync(50)
+
+    const result = await runPromise
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('ABORTED')
+    expect(logs.some((entry) => entry.includes('Wait interrupted'))).toBe(true)
+
+    vi.useRealTimers()
+  })
+
+  it('aborts HOLD_KEY mid-duration and still releases the key', async () => {
+    vi.useFakeTimers()
+    let shouldAbort = false
+
+    const runPromise = macroRunner.runMacro({
+      macro: {
+        id: 'macro-hold-abort-mid-command',
+        name: 'Hold Abort Mid Command',
+        shortcut: 'CTRL+H',
+        isActive: true,
+        status: 'RUNNING',
+        blocksJson: {
+          commands: [{ type: 'HOLD_KEY', payload: { key: 'A', durationMs: 1000 } }]
+        }
+      },
+      settings: {
+        globalMaster: true,
+        delayMs: 0,
+        stopOnError: true
+      },
+      onLog: () => undefined,
+      isGlobalMasterEnabled: () => true,
+      shouldAbort: () => shouldAbort
+    })
+
+    await vi.advanceTimersByTimeAsync(35)
+    shouldAbort = true
+    await vi.advanceTimersByTimeAsync(50)
+
+    const result = await runPromise
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('ABORTED')
+    expect(pressKeyMock).toHaveBeenCalled()
+    expect(releaseKeyMock).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
   it('accepts quoted button label in legacy mouse payloads', async () => {
     const result = await macroRunner.runMacro({
       macro: {
@@ -593,10 +671,11 @@ describe('MacroRunner', () => {
       }
     })
 
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('ABORTED')
     expect(
       typeMock.mock.calls.filter((call) => call.at(0) === 'tick').length
-    ).toBeGreaterThanOrEqual(3)
+    ).toBeGreaterThanOrEqual(1)
   })
 
   it('fails INFINITE_LOOP when nested command fails and stopOnError is enabled', async () => {

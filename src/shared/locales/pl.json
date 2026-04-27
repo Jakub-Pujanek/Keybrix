@@ -152,7 +152,11 @@
     "shortcut": {
       "rec": "NAGRAJ",
       "pressKeys": "WCIŚNIJ KLAWISZE",
-      "startShortcut": "Skrót Startowy"
+      "startShortcut": "Skrót Startowy",
+      "errors": {
+        "unsupportedFormat": "Skrot {{keys}} jest niepoprawny. Uzyj modyfikatorow i dokladnie jednego klawisza (np. CTRL + SHIFT + M).",
+        "conflictTakenByMacro": "Skrot {{keys}} jest juz zajety przez makro \"{{macroName}}\"."
+      }
     },
     "field": {
       "key": "Klawisz",

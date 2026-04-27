@@ -1,6 +1,6 @@
 {
   "name": "keybrix",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A desktop automation tool that lets users build macros using visual blocks instead of code. Create workflows, automate repetitive tasks, and control your system through a Scratch‑like block editor.",
   "main": "./out/main/index.js",
   "author": "Jakub Pujanek",

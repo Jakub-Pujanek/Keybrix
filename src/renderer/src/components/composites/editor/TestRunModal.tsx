@@ -109,7 +109,7 @@ function TestRunModal({
         </div>
       </section>
 
-      <section className="flex min-h-0 min-w-0 flex-col rounded border border-(--kb-border) bg-(--kb-bg-panel) p-3">
+      <section className="flex h-[min(42vh,22rem)] min-h-56 min-w-0 flex-col rounded border border-(--kb-border) bg-(--kb-bg-panel) p-3">
         <div className="flex items-center justify-between gap-3">
           <h4 className="text-sm font-semibold tracking-[0.08em] text-(--kb-text-muted) uppercase">
             {tx('editor.testRun.logsTitle')}
@@ -126,7 +126,10 @@ function TestRunModal({
             {tx('editor.testRun.reasonCode', { reasonCode })}
           </p>
         ) : null}
-        <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
+        <div
+          data-testid="test-run-modal-logs-list"
+          className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-1"
+        >
           {logs.length === 0 ? (
             <p className="text-xs text-(--kb-text-muted)">{tx('editor.testRun.emptyLogs')}</p>
           ) : (

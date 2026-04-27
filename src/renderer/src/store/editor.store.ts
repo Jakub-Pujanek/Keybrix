@@ -5,11 +5,18 @@ import {
   type EditorBlockType,
   type EditorNode,
   type ManualRunResult,
-  type Macro
+  type Macro,
+  type RecordShortcutResultReason
 } from '../../../shared/api'
 import { compileNodesToRuntimeCommands } from '../../../shared/macro-runtime'
 
 type RecordingSource = 'topbar' | 'start-block' | 'press-key-block' | 'execute-shortcut-block'
+
+type ShortcutRecordingError = {
+  reasonCode: Extract<RecordShortcutResultReason, 'UNSUPPORTED_FORMAT' | 'CONFLICT'>
+  keys: string
+  conflictMacroName?: string
+}
 
 type EditorState = {
   nodes: EditorNode[]
@@ -20,6 +27,7 @@ type EditorState = {
   isRecordingShortcut: boolean
   recordingSource: RecordingSource | null
   recordingNodeId: string | null
+  shortcutRecordingError: ShortcutRecordingError | null
   heldKeys: string[]
   comboKeys: string[]
   mousePickerTargetNodeId: string | null
@@ -39,6 +47,7 @@ type EditorState = {
   setZoom: (zoom: number) => void
   startShortcutRecording: (source: RecordingSource, nodeId?: string) => void
   cancelShortcutRecording: () => void
+  clearShortcutRecordingError: () => void
   handleShortcutKeyDown: (event: KeyboardEvent) => void
   handleShortcutKeyUp: (event: KeyboardEvent) => Promise<void>
   saveMacroFromEditor: () => Promise<boolean>
@@ -245,6 +254,7 @@ const buildSafeEditorState = (): Pick<
   | 'isRecordingShortcut'
   | 'recordingSource'
   | 'recordingNodeId'
+  | 'shortcutRecordingError'
   | 'heldKeys'
   | 'comboKeys'
   | 'mousePickerTargetNodeId'
@@ -259,6 +269,7 @@ const buildSafeEditorState = (): Pick<
   isRecordingShortcut: false,
   recordingSource: null,
   recordingNodeId: null,
+  shortcutRecordingError: null,
   heldKeys: [],
   comboKeys: [],
   mousePickerTargetNodeId: null,
@@ -585,23 +596,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   startShortcutRecording: (source, nodeId) => {
+    void window.api.keyboard.setCaptureActive(true).catch(() => undefined)
+
     set({
       isRecordingShortcut: true,
       recordingSource: source,
       recordingNodeId: nodeId ?? null,
+      shortcutRecordingError: null,
       heldKeys: [],
       comboKeys: []
     })
   },
 
   cancelShortcutRecording: () => {
+    void window.api.keyboard.setCaptureActive(false).catch(() => undefined)
+
     set({
       isRecordingShortcut: false,
       recordingSource: null,
       recordingNodeId: null,
+      shortcutRecordingError: null,
       heldKeys: [],
       comboKeys: []
     })
+  },
+
+  clearShortcutRecordingError: () => {
+    set({ shortcutRecordingError: null })
   },
 
   handleShortcutKeyDown: (event) => {
@@ -621,7 +642,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   handleShortcutKeyUp: async (event) => {
-    const { isRecordingShortcut, heldKeys, comboKeys, recordingSource, recordingNodeId } = get()
+    const {
+      isRecordingShortcut,
+      heldKeys,
+      comboKeys,
+      recordingSource,
+      recordingNodeId,
+      activeMacroId
+    } = get()
     if (!isRecordingShortcut) return
 
     event.preventDefault()
@@ -634,34 +662,92 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const formatted = formatShortcut(comboKeys)
     const singleKey = formatSingleKey(comboKeys)
 
-    set((state) => {
-      if (recordingSource === 'press-key-block' && recordingNodeId) {
-        return {
-          isRecordingShortcut: false,
-          recordingSource: null,
-          recordingNodeId: null,
-          comboKeys: [],
-          nodes: state.nodes.map((node) =>
-            node.id === recordingNodeId && (node.type === 'PRESS_KEY' || node.type === 'HOLD_KEY')
-              ? {
-                  ...node,
-                  payload: {
-                    ...node.payload,
-                    key: singleKey || formatted
+    const recordedKeys = recordingSource === 'press-key-block' ? singleKey || formatted : formatted
+    const isMacroShortcutSource = recordingSource === 'topbar' || recordingSource === 'start-block'
+
+    try {
+      if (recordingSource) {
+        const reservation = await window.api.keyboard.recordShortcut({
+          keys: recordedKeys,
+          source: recordingSource,
+          macroId: isMacroShortcutSource ? activeMacroId ?? undefined : undefined
+        })
+
+        if (isMacroShortcutSource && !reservation.success) {
+          set({
+            isRecordingShortcut: false,
+            recordingSource: null,
+            recordingNodeId: null,
+            heldKeys: [],
+            comboKeys: [],
+            shortcutRecordingError:
+              reservation.reasonCode === 'CONFLICT'
+                ? {
+                    reasonCode: 'CONFLICT',
+                    keys: recordedKeys,
+                    conflictMacroName: reservation.conflictMacroName
                   }
-                }
-              : node
-          )
+                : {
+                    reasonCode: 'UNSUPPORTED_FORMAT',
+                    keys: recordedKeys
+                  }
+          })
+
+          return
         }
       }
-      if (recordingSource === 'execute-shortcut-block' && recordingNodeId) {
+
+      set((state) => {
+        if (recordingSource === 'press-key-block' && recordingNodeId) {
+          return {
+            isRecordingShortcut: false,
+            recordingSource: null,
+            recordingNodeId: null,
+            shortcutRecordingError: null,
+            comboKeys: [],
+            nodes: state.nodes.map((node) =>
+              node.id === recordingNodeId && (node.type === 'PRESS_KEY' || node.type === 'HOLD_KEY')
+                ? {
+                    ...node,
+                    payload: {
+                      ...node.payload,
+                      key: singleKey || formatted
+                    }
+                  }
+                : node
+            )
+          }
+        }
+        if (recordingSource === 'execute-shortcut-block' && recordingNodeId) {
+          return {
+            isRecordingShortcut: false,
+            recordingSource: null,
+            recordingNodeId: null,
+            shortcutRecordingError: null,
+            comboKeys: [],
+            nodes: state.nodes.map((node) =>
+              node.id === recordingNodeId && node.type === 'EXECUTE_SHORTCUT'
+                ? {
+                    ...node,
+                    payload: {
+                      ...node.payload,
+                      shortcut: formatted
+                    }
+                  }
+                : node
+            )
+          }
+        }
+
         return {
+          shortcut: formatted,
           isRecordingShortcut: false,
           recordingSource: null,
           recordingNodeId: null,
+          shortcutRecordingError: null,
           comboKeys: [],
           nodes: state.nodes.map((node) =>
-            node.id === recordingNodeId && node.type === 'EXECUTE_SHORTCUT'
+            node.type === 'START'
               ? {
                   ...node,
                   payload: {
@@ -672,33 +758,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
               : node
           )
         }
-      }
-
-      return {
-        shortcut: formatted,
-        isRecordingShortcut: false,
-        recordingSource: null,
-        recordingNodeId: null,
-        comboKeys: [],
-        nodes: state.nodes.map((node) =>
-          node.type === 'START'
-            ? {
-                ...node,
-                payload: {
-                  ...node.payload,
-                  shortcut: formatted
-                }
-              }
-            : node
-        )
-      }
-    })
-
-    if (recordingSource) {
-      await window.api.keyboard.recordShortcut({
-        keys: recordingSource === 'press-key-block' ? singleKey || formatted : formatted,
-        source: recordingSource
       })
+    } finally {
+      void window.api.keyboard.setCaptureActive(false).catch(() => undefined)
     }
   },
 

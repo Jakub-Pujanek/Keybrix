@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RecordShortcutResult } from '../../../shared/api'
 
 let useEditorStore: (typeof import('./editor.store'))['useEditorStore']
 
@@ -15,9 +16,18 @@ let onCoordinateSelectedListener:
 
 const mousePickerStartMock = vi.fn(async () => true)
 const mousePickerStopMock = vi.fn(async () => true)
+const recordShortcutMock = vi.fn(async (): Promise<RecordShortcutResult> => ({
+  success: true,
+  reasonCode: 'OK'
+}))
+const setCaptureActiveMock = vi.fn(async () => true)
 
 const setupApiMock = (): void => {
   ;(window as { api: unknown }).api = {
+    keyboard: {
+      recordShortcut: recordShortcutMock,
+      setCaptureActive: setCaptureActiveMock
+    },
     mousePicker: {
       start: mousePickerStartMock,
       stop: mousePickerStopMock,
@@ -38,6 +48,8 @@ describe('editor.store mouse picker', () => {
     vi.resetModules()
     mousePickerStartMock.mockClear()
     mousePickerStopMock.mockClear()
+    recordShortcutMock.mockClear()
+    setCaptureActiveMock.mockClear()
     previewUnsubscribe.mockClear()
     selectedUnsubscribe.mockClear()
     onPreviewUpdateListener = null
@@ -171,5 +183,50 @@ describe('editor.store mouse picker', () => {
     expect(state.macroTitle).toBe('My First Macro')
     expect(state.shortcut).toBe('CTRL + SHIFT + M')
     expect(state.nodes.length).toBeGreaterThan(0)
+  })
+
+  it('keeps existing shortcut and stores conflict error when recorded shortcut is already taken', async () => {
+    recordShortcutMock.mockResolvedValueOnce({
+      success: false,
+      reasonCode: 'CONFLICT',
+      conflictMacroName: 'Busy Macro'
+    })
+
+    useEditorStore.setState({
+      activeMacroId: 'macro-1',
+      shortcut: 'CTRL + SHIFT + M'
+    })
+
+    useEditorStore.getState().startShortcutRecording('topbar')
+    useEditorStore.getState().handleShortcutKeyDown(
+      new KeyboardEvent('keydown', { code: 'ControlLeft' })
+    )
+    useEditorStore.getState().handleShortcutKeyDown(
+      new KeyboardEvent('keydown', { code: 'ShiftLeft' })
+    )
+    useEditorStore.getState().handleShortcutKeyDown(new KeyboardEvent('keydown', { code: 'KeyR' }))
+
+    await useEditorStore.getState().handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'KeyR' }))
+    await useEditorStore
+      .getState()
+      .handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'ShiftLeft' }))
+    await useEditorStore
+      .getState()
+      .handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'ControlLeft' }))
+
+    const state = useEditorStore.getState()
+    expect(state.shortcut).toBe('CTRL + SHIFT + M')
+    expect(state.shortcutRecordingError).toEqual({
+      reasonCode: 'CONFLICT',
+      keys: 'CTRL + SHIFT + R',
+      conflictMacroName: 'Busy Macro'
+    })
+    expect(recordShortcutMock).toHaveBeenCalledWith({
+      keys: 'CTRL + SHIFT + R',
+      source: 'topbar',
+      macroId: 'macro-1'
+    })
+    expect(setCaptureActiveMock).toHaveBeenCalledWith(true)
+    expect(setCaptureActiveMock).toHaveBeenCalledWith(false)
   })
 })

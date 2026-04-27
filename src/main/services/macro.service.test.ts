@@ -106,16 +106,33 @@ describe('MacroService', () => {
   it('reserves available shortcut and rejects used one', async () => {
     const { macroService } = await import('./macro.service')
 
-    macroService.save({
+    const saved = macroService.save({
       name: 'Macro 1',
       shortcut: 'CTRL+R',
       blocksJson: { nodes: [], zoom: 1 }
     })
 
-    expect(macroService.reserveShortcut({ keys: 'CTRL+X', source: 'topbar' })).toBe(true)
-    expect(macroService.reserveShortcut({ keys: 'CTRL + R', source: 'topbar' })).toBe(false)
-    expect(macroService.reserveShortcut({ keys: 'CTRL+O+P', source: 'topbar' })).toBe(false)
-    expect(macroService.reserveShortcut({ keys: 'X', source: 'topbar' })).toBe(false)
+    expect(macroService.reserveShortcut({ keys: 'CTRL+X', source: 'topbar' })).toEqual({
+      success: true,
+      reasonCode: 'OK'
+    })
+    expect(macroService.reserveShortcut({ keys: 'CTRL + R', source: 'topbar' })).toEqual({
+      success: false,
+      reasonCode: 'CONFLICT',
+      conflictMacroName: 'Macro 1'
+    })
+    expect(macroService.reserveShortcut({ keys: 'CTRL + R', source: 'topbar', macroId: saved.id })).toEqual({
+      success: true,
+      reasonCode: 'OK'
+    })
+    expect(macroService.reserveShortcut({ keys: 'CTRL+O+P', source: 'topbar' })).toEqual({
+      success: false,
+      reasonCode: 'UNSUPPORTED_FORMAT'
+    })
+    expect(macroService.reserveShortcut({ keys: 'X', source: 'topbar' })).toEqual({
+      success: false,
+      reasonCode: 'UNSUPPORTED_FORMAT'
+    })
   })
 
   it('rejects invalid global shortcut format on save', async () => {

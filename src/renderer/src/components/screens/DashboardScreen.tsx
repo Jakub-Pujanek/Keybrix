@@ -198,7 +198,7 @@ function DashboardScreen(): React.JSX.Element {
           <button
             type="button"
             onClick={openCreateMacroModal}
-            className="flex flex-col items-center gap-4 rounded-xl border border-(--kb-border) bg-(--kb-bg-overlay) px-8 py-8 text-(--kb-text-muted) transition hover:brightness-110"
+            className="flex flex-col items-center gap-4 rounded-xl border border-(--kb-border) bg-(--kb-bg-overlay) px-8 py-8 text-(--kb-text-muted) transition-[transform,filter,background-color,color,border-color] duration-150 ease-out hover:brightness-110 active:translate-y-px active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:translate-y-0 motion-reduce:active:scale-100"
           >
             <span className="grid h-12 w-12 place-items-center rounded-xl border border-(--kb-border) text-(--kb-text-main)">
               <Plus className="h-6 w-6" />

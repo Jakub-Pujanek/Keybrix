@@ -14,6 +14,7 @@ import {
   type SessionDetectionSource,
   type SessionDiagnostics,
   type ManualRunReasonCode,
+  type RecordShortcutResult,
   type Macro,
   type KeybrixApi,
   type UpdaterState,
@@ -366,6 +367,37 @@ const coerceUpdaterState = (value: unknown): UpdaterState | null => {
     version: version as string | undefined,
     progressPercent: progressPercent as number | undefined,
     message: message as string | undefined
+  }
+}
+
+const coerceRecordShortcutResult = (value: unknown): RecordShortcutResult => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid shortcut reservation payload.')
+  }
+
+  const success = value['success']
+  const reasonCode = value['reasonCode']
+  const conflictMacroName = value['conflictMacroName']
+
+  if (typeof success !== 'boolean') {
+    throw new Error('Invalid shortcut reservation success field.')
+  }
+
+  if (reasonCode !== 'OK' && reasonCode !== 'UNSUPPORTED_FORMAT' && reasonCode !== 'CONFLICT') {
+    throw new Error('Invalid shortcut reservation reasonCode field.')
+  }
+
+  if (
+    conflictMacroName !== undefined &&
+    (typeof conflictMacroName !== 'string' || conflictMacroName.trim().length === 0)
+  ) {
+    throw new Error('Invalid shortcut reservation conflictMacroName field.')
+  }
+
+  return {
+    success,
+    reasonCode,
+    conflictMacroName: conflictMacroName as string | undefined
   }
 }
 
@@ -1066,6 +1098,7 @@ const api: KeybrixApi = {
 
       const keys = input['keys']
       const source = input['source']
+      const macroId = input['macroId']
       if (typeof keys !== 'string' || keys.trim().length === 0) {
         throw new Error('Invalid shortcut keys.')
       }
@@ -1079,11 +1112,24 @@ const api: KeybrixApi = {
         throw new Error('Invalid shortcut source.')
       }
 
+      if (macroId !== undefined && (typeof macroId !== 'string' || macroId.trim().length === 0)) {
+        throw new Error('Invalid shortcut macroId.')
+      }
+
       const result = await ipcRenderer.invoke(IPC_CHANNELS.keyboard.recordShortcut, {
         keys,
-        source
+        source,
+        macroId
       })
-      return Boolean(result)
+      return coerceRecordShortcutResult(result)
+    },
+    setCaptureActive: async (active) => {
+      if (typeof active !== 'boolean') {
+        throw new Error('Invalid capture active payload.')
+      }
+
+      const result = await ipcRenderer.invoke(IPC_CHANNELS.keyboard.setCaptureActive, { active })
+      return result === true
     }
   },
   settings: {

@@ -8,19 +8,19 @@ Build shortcuts and actions visually using blocks - fast, intuitive, and beginne
 
 ## Demo
 
-Add your main product GIF here (recommended: 5-7 seconds):
+See the new app walkthrough GIF below:
 
-![Keybrix Demo GIF - replace with your file](./docs/screenshots/demo.gif)
+![Keybrix Demo GIF](./resources/keybrix.gif)
 
 ## Screenshots / GIFs
 
-The placeholders below are ready for your visuals. Add 1-3 screenshots or GIFs showing the core app views.
+Screenshots from the current `resources` folder showing the core app views.
 
-| View | Placeholder Path |
+| View | Path |
 | --- | --- |
-| Block editor | `./docs/screenshots/block-editor.png` |
-| Shortcuts list | `./docs/screenshots/shortcuts-list.png` |
-| Settings window | `./docs/screenshots/settings.png` |
+| Block editor | `./resources/block-editor.png` |
+| Dashboard | `./resources/dashboard.png` |
+| Settings window | `./resources/settings.png` |
 
 ## Why Keybrix?
 
@@ -63,15 +63,11 @@ Supported platforms:
 4. Save and assign the shortcut so it works globally in your system.
 5. Run the action using the shortcut or directly from the app.
 
-Example:
-Create a shortcut that opens Spotify, sets volume to 30%, and starts your playlist.
-
 ## Roadmap
 
 Planned additions:
 
 - [ ] `if` block
-- [ ] `wait` block
 - [ ] system integrations
 - [ ] plugins
 

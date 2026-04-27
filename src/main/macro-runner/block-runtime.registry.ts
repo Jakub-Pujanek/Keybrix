@@ -93,6 +93,37 @@ const sleep = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+const ABORT_POLL_INTERVAL_MS = 25
+
+const sleepInterruptible = async (
+  ms: number,
+  context: Pick<RuntimeExecutionContext, 'shouldAbort' | 'isGlobalMasterEnabled'>
+): Promise<boolean> => {
+  const totalMs = Math.max(0, Math.round(ms))
+
+  if (totalMs === 0) {
+    return !context.shouldAbort() && context.isGlobalMasterEnabled()
+  }
+
+  let remainingMs = totalMs
+
+  while (remainingMs > 0) {
+    if (context.shouldAbort() || !context.isGlobalMasterEnabled()) {
+      return false
+    }
+
+    const nextChunkMs = Math.min(remainingMs, ABORT_POLL_INTERVAL_MS)
+    await sleep(nextChunkMs)
+    remainingMs -= nextChunkMs
+  }
+
+  return !context.shouldAbort() && context.isGlobalMasterEnabled()
+}
+
+const delayAfterCommand = async (context: RuntimeExecutionContext): Promise<boolean> => {
+  return sleepInterruptible(context.settings.delayMs, context)
+}
+
 type CommandTimeoutKind = 'keyboard' | 'mouse'
 
 const getCommandTimeoutMs = (kind: CommandTimeoutKind, sessionType: SessionType): number => {
@@ -327,7 +358,7 @@ const runPressKey = async (
 const runHoldKey = async (
   command: RuntimeCommand,
   context: RuntimeExecutionContext
-): Promise<void> => {
+): Promise<boolean> => {
   const token = extractSingleKeyToken(command, 'HOLD_KEY')
   const key = resolveKey(token)
 
@@ -340,21 +371,42 @@ const runHoldKey = async (
     message: `Holding key '${token}' for ${durationMs}ms.`
   })
   const keyboardTimeoutMs = getCommandTimeoutMs('keyboard', context.sessionType)
-  await executeWithTimeout(
-    () => keyboard.pressKey(key),
-    keyboardTimeoutMs,
-    `HOLD_KEY timed out after ${keyboardTimeoutMs}ms while pressing '${token}'.`
-  )
-  await sleep(durationMs)
-  await executeWithTimeout(
-    () => keyboard.releaseKey(key),
-    keyboardTimeoutMs,
-    `HOLD_KEY timed out after ${keyboardTimeoutMs}ms while releasing '${token}'.`
-  )
+  let keyPressed = false
+  let heldToCompletion = false
+
+  try {
+    await executeWithTimeout(
+      () => keyboard.pressKey(key),
+      keyboardTimeoutMs,
+      `HOLD_KEY timed out after ${keyboardTimeoutMs}ms while pressing '${token}'.`
+    )
+    keyPressed = true
+
+    heldToCompletion = await sleepInterruptible(durationMs, context)
+  } finally {
+    if (keyPressed) {
+      await executeWithTimeout(
+        () => keyboard.releaseKey(key),
+        keyboardTimeoutMs,
+        `HOLD_KEY timed out after ${keyboardTimeoutMs}ms while releasing '${token}'.`
+      )
+    }
+  }
+
+  if (!heldToCompletion) {
+    context.onLog({
+      level: 'WARN',
+      message: `Holding key '${token}' interrupted before ${durationMs}ms elapsed.`
+    })
+    return false
+  }
+
   context.onLog({
     level: 'INFO',
     message: `Held key '${token}' for ${durationMs}ms.`
   })
+
+  return true
 }
 
 const runExecuteShortcut = async (
@@ -473,7 +525,7 @@ const runMouseClick = async (
 const runAutoclickerTimed = async (
   command: RuntimeCommand,
   context: RuntimeExecutionContext
-): Promise<void> => {
+): Promise<boolean> => {
   if (!command.payload || typeof command.payload !== 'object') {
     throw new Error('AUTOCLICKER_TIMED command is missing payload')
   }
@@ -496,7 +548,7 @@ const runAutoclickerTimed = async (
 
   for (let index = 0; index < iterations; index += 1) {
     if (context.shouldAbort() || !context.isGlobalMasterEnabled()) {
-      return
+      return false
     }
 
     await executeWithTimeout(
@@ -510,7 +562,10 @@ const runAutoclickerTimed = async (
     )
 
     if (index < iterations - 1) {
-      await sleep(frequencyMs)
+      const canContinue = await sleepInterruptible(frequencyMs, context)
+      if (!canContinue) {
+        return false
+      }
     }
   }
 
@@ -518,6 +573,8 @@ const runAutoclickerTimed = async (
     level: 'INFO',
     message: `Autoclicker timed finished (${iterations} clicks).`
   })
+
+  return true
 }
 
 const runAutoclickerInfinite = async (
@@ -556,7 +613,15 @@ const runAutoclickerInfinite = async (
       mouseTimeoutMs,
       `AUTOCLICKER_INFINITE timed out after ${mouseTimeoutMs}ms while clicking '${buttonLabel}'.`
     )
-    await sleep(frequencyMs)
+
+    const canContinue = await sleepInterruptible(frequencyMs, context)
+    if (!canContinue) {
+      context.onLog({
+        level: 'INFO',
+        message: 'Autoclicker infinite stopped by abort/global master.'
+      })
+      return true
+    }
   }
 }
 
@@ -691,41 +756,42 @@ export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCom
   },
   PRESS_KEY: async (command, context) => {
     await runPressKey(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    return delayAfterCommand(context)
   },
   HOLD_KEY: async (command, context) => {
-    await runHoldKey(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    const success = await runHoldKey(command, context)
+    if (!success) {
+      return false
+    }
+
+    return delayAfterCommand(context)
   },
   EXECUTE_SHORTCUT: async (command, context) => {
     await runExecuteShortcut(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    return delayAfterCommand(context)
   },
   TYPE_TEXT: async (command, context) => {
     await runTypeText(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    return delayAfterCommand(context)
   },
   MOUSE_CLICK: async (command, context) => {
     await runMouseClick(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    return delayAfterCommand(context)
   },
   AUTOCLICKER_TIMED: async (command, context) => {
-    await runAutoclickerTimed(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    const success = await runAutoclickerTimed(command, context)
+    if (!success) {
+      return false
+    }
+
+    return delayAfterCommand(context)
   },
   AUTOCLICKER_INFINITE: async (command, context) => {
     return runAutoclickerInfinite(command, context)
   },
   MOVE_MOUSE_DURATION: async (command, context) => {
     await runMoveMouseDuration(command, context)
-    await sleep(context.settings.delayMs)
-    return true
+    return delayAfterCommand(context)
   },
   WAIT: async (command, context) => {
     const waitMs = resolveWaitDuration(command, context.settings.delayMs)
@@ -733,7 +799,16 @@ export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCom
       level: 'RUN',
       message: `Waiting ${waitMs}ms.`
     })
-    await sleep(waitMs)
+
+    const completed = await sleepInterruptible(waitMs, context)
+    if (!completed) {
+      context.onLog({
+        level: 'WARN',
+        message: `Wait interrupted after ${waitMs}ms request.`
+      })
+      return false
+    }
+
     context.onLog({
       level: 'INFO',
       message: `Waited ${waitMs}ms.`
@@ -798,7 +873,14 @@ export const BLOCK_RUNTIME_REGISTRY: Readonly<Record<EditorBlockType, RuntimeCom
       }
 
       if (commands.length === 0) {
-        await sleep(Math.max(0, context.settings.delayMs))
+        const canContinue = await sleepInterruptible(Math.max(0, context.settings.delayMs), context)
+        if (!canContinue) {
+          context.onLog({
+            level: 'WARN',
+            message: `Infinite loop stopped after ${iteration} iterations.`
+          })
+          return false
+        }
       }
     }
   }
@@ -814,8 +896,7 @@ export const executeRuntimeCommand = async (
   }
 
   if (!(commandType in BLOCK_RUNTIME_REGISTRY)) {
-    await sleep(context.settings.delayMs)
-    return true
+    return sleepInterruptible(context.settings.delayMs, context)
   }
 
   const payload =

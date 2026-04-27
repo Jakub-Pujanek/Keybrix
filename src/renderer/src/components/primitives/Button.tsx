@@ -9,7 +9,7 @@ type ButtonProps = PropsWithChildren<
 >
 
 const baseClasses =
-  'inline-flex items-center justify-center rounded-md font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--kb-accent-rgb)/0.5)] disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex items-center justify-center rounded-md font-semibold transition-[transform,filter,background-color,color,border-color] duration-150 ease-out active:translate-y-px active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--kb-accent-rgb)/0.5)] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:translate-y-0 motion-reduce:active:scale-100'
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:

@@ -12,6 +12,7 @@ describe('EditorTopBar', () => {
         shortcut="CTRL + SHIFT + 1"
         isRecording={false}
         pressedPreview=""
+        shortcutError={null}
         onMacroTitleChange={onMacroTitleChange}
         onStartShortcutRecording={() => undefined}
         onCancelShortcutRecording={() => undefined}
@@ -37,6 +38,7 @@ describe('EditorTopBar', () => {
         shortcut="CTRL + SHIFT + 1"
         isRecording={false}
         pressedPreview=""
+        shortcutError={null}
         onMacroTitleChange={() => undefined}
         onStartShortcutRecording={() => undefined}
         onCancelShortcutRecording={() => undefined}
@@ -52,5 +54,27 @@ describe('EditorTopBar', () => {
     expect(windowKeyDownSpy).not.toHaveBeenCalled()
 
     window.removeEventListener('keydown', windowKeyDownSpy)
+  })
+
+  it('shows shortcut recording error message when provided', () => {
+    render(
+      <EditorTopBar
+        macroTitle="Macro"
+        shortcut="CTRL + SHIFT + 1"
+        isRecording={false}
+        pressedPreview=""
+        shortcutError="Shortcut CTRL + SHIFT + 1 is already used."
+        onMacroTitleChange={() => undefined}
+        onStartShortcutRecording={() => undefined}
+        onCancelShortcutRecording={() => undefined}
+        onClear={() => undefined}
+        onTestRun={() => undefined}
+        onSave={() => undefined}
+      />
+    )
+
+    expect(screen.getByTestId('editor-shortcut-error')).toHaveTextContent(
+      'Shortcut CTRL + SHIFT + 1 is already used.'
+    )
   })
 })

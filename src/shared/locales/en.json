@@ -152,7 +152,11 @@
     "shortcut": {
       "rec": "REC",
       "pressKeys": "PRESS KEYS",
-      "startShortcut": "Start Shortcut"
+      "startShortcut": "Start Shortcut",
+      "errors": {
+        "unsupportedFormat": "Shortcut {{keys}} is invalid. Use modifiers plus exactly one key (e.g. CTRL + SHIFT + M).",
+        "conflictTakenByMacro": "Shortcut {{keys}} is already used by macro \"{{macroName}}\"."
+      }
     },
     "field": {
       "key": "Key",
