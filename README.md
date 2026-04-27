@@ -16,11 +16,17 @@ See the new app walkthrough GIF below:
 
 Screenshots from the current `resources` folder showing the core app views.
 
-| View | Path |
-| --- | --- |
-| Block editor | `./resources/block-editor.png` |
-| Dashboard | `./resources/dashboard.png` |
-| Settings window | `./resources/settings.png` |
+### Block editor
+
+![Block editor](./resources/block-editor.png)
+
+### Dashboard
+
+![Dashboard](./resources/dashboard.png)
+
+### Settings window
+
+![Settings window](./resources/settings.png)
 
 ## Why Keybrix?
 
