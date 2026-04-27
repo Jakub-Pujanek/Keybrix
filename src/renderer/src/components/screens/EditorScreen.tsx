@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActivityLog, ManualRunResult } from '../../../../shared/api'
+import type { I18nPathKey } from '../../../../shared/i18n'
 import BlocksLibraryPanel from '../composites/editor/BlocksLibraryPanel'
 import CanvasControls from '../composites/editor/CanvasControls'
 import CanvasGrid from '../composites/editor/CanvasGrid'
@@ -8,6 +9,7 @@ import TestRunModal from '../composites/editor/TestRunModal'
 import { useEditorStore } from '../../store'
 import { useEditorCanvasInteractions } from '../../hooks/useEditorCanvasInteractions'
 import { useActivityStore } from '../../store/activity.store'
+import { useI18n } from '../../lib/useI18n'
 
 type TestRunStatus = 'IDLE' | 'RUNNING' | 'SUCCESS' | 'BLOCKED' | 'TIMEOUT' | 'ERROR'
 
@@ -93,6 +95,22 @@ const sleep = (delayMs: number): Promise<void> => {
   })
 }
 
+const isEditableEventTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  ) {
+    return true
+  }
+
+  return target.isContentEditable
+}
+
 const fetchLogsWithRetries = async (
   loadRecentLogs: () => Promise<ActivityLog[]>,
   baselineLogIds: Set<string>,
@@ -148,86 +166,94 @@ const buildSyntheticDiagnosticLog = (
   }
 }
 
-const classifyRunFailure = (
-  result: ManualRunResult
-): { status: TestRunStatus; message: string } => {
+type ClassifiedRunFailure = {
+  status: TestRunStatus
+  messageKey: I18nPathKey
+  variables?: Record<string, string | number | undefined>
+}
+
+const classifyRunFailure = (result: ManualRunResult): ClassifiedRunFailure => {
   if (result.reasonCode === 'ALREADY_RUNNING') {
     return {
       status: 'BLOCKED',
-      message: 'To makro jest juz uruchomione.'
+      messageKey: 'editor.testRun.errors.alreadyRunning'
     }
   }
 
   if (result.reasonCode === 'NOT_RUNNING') {
     return {
       status: 'BLOCKED',
-      message: 'To makro nie jest aktualnie uruchomione.'
+      messageKey: 'editor.testRun.errors.notRunning'
     }
   }
 
   if (result.reasonCode === 'MACRO_NOT_FOUND') {
     return {
       status: 'ERROR',
-      message: 'Nie znaleziono makra do uruchomienia testu.'
+      messageKey: 'editor.testRun.errors.macroNotFound'
     }
   }
 
   if (result.reasonCode === 'INVALID_MACRO_ID') {
     return {
       status: 'ERROR',
-      message: 'Nieprawidlowy identyfikator makra.'
+      messageKey: 'editor.testRun.errors.invalidMacroId'
     }
   }
 
   if (result.reasonCode === 'SAVE_FAILED') {
     return {
       status: 'ERROR',
-      message: 'Nie udalo sie zapisac makra przed uruchomieniem testu.'
+      messageKey: 'editor.testRun.errors.saveFailed'
     }
   }
 
   if (result.reasonCode === 'GLOBAL_MASTER_OFF') {
     return {
       status: 'BLOCKED',
-      message: 'Global Master jest wylaczony. Wlacz go w ustawieniach.'
+      messageKey: 'editor.testRun.errors.globalMasterOff'
     }
   }
 
   if (result.reasonCode === 'WAYLAND_BLOCKED') {
     return {
       status: 'BLOCKED',
-      message: 'Srodowisko Wayland blokuje symulowane wejscie. Przelacz sesje na X11.'
+      messageKey: 'editor.testRun.errors.waylandBlocked'
     }
   }
 
   if (result.reasonCode === 'COMMAND_TIMEOUT') {
     return {
       status: 'TIMEOUT',
-      message: 'Komenda runtime przekroczyla limit czasu. Sprawdz logi wykonania.'
+      messageKey: 'editor.testRun.errors.commandTimeout'
     }
   }
 
   if (result.reasonCode === 'RUNNER_FAILED' || result.reasonCode === 'COMMAND_ERROR') {
     return {
       status: 'ERROR',
-      message: 'Runtime makra zakonczyl sie bledem. Sprawdz logi wykonania.'
+      messageKey: 'editor.testRun.errors.runtimeFailed'
     }
   }
 
   if (result.reasonCode === 'IPC_ERROR') {
     return {
       status: 'ERROR',
-      message: 'Blad komunikacji IPC miedzy renderer a main.'
+      messageKey: 'editor.testRun.errors.ipcError'
     }
   }
 
   return {
     status: 'ERROR',
-    message: `Nie udalo sie uruchomic testu makra. Kod: ${result.reasonCode}.`
+    messageKey: 'editor.testRun.errors.genericWithCode',
+    variables: {
+      reasonCode: result.reasonCode
+    }
   }
 }
 
 function EditorScreen(): React.JSX.Element {
+  const { tx } = useI18n()
   const [isTestModalOpen, setIsTestModalOpen] = useState(false)
   const [isTestRunning, setIsTestRunning] = useState(false)
   const [testRunStatus, setTestRunStatus] = useState<TestRunStatus>('IDLE')
@@ -341,10 +367,12 @@ function EditorScreen(): React.JSX.Element {
     if (!isRecordingShortcut) return
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (isEditableEventTarget(event.target)) return
       handleShortcutKeyDown(event)
     }
 
     const onKeyUp = (event: KeyboardEvent): void => {
+      if (isEditableEventTarget(event.target)) return
       void handleShortcutKeyUp(event)
     }
 
@@ -361,13 +389,7 @@ function EditorScreen(): React.JSX.Element {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
 
-      const target = event.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
+      if (isEditableEventTarget(event.target)) {
         return
       }
 
@@ -589,26 +611,28 @@ function EditorScreen(): React.JSX.Element {
               setTestRunStatus('SUCCESS')
             } else {
               const classified = classifyRunFailure(effectiveResult)
+              const classifiedMessage = tx(classified.messageKey, classified.variables)
               const debugSuffix = effectiveResult.debugMessage
                 ? ` [debug=${effectiveResult.debugMessage}]`
                 : ''
               const logsForModal =
                 scopedLogs.length > 0
                   ? scopedLogs
-                  : [buildSyntheticDiagnosticLog(effectiveResult, classified.message, attemptId)]
+                  : [buildSyntheticDiagnosticLog(effectiveResult, classifiedMessage, attemptId)]
 
               setTestRunLogs(logsForModal)
               setTestRunStatus(classified.status)
-              setTestError(`${classified.message}${debugSuffix} [attempt=${attemptId}]`)
+              setTestError(`${classifiedMessage}${debugSuffix} [attempt=${attemptId}]`)
             }
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Nieznany blad testu.'
+            const message =
+              error instanceof Error ? error.message : tx('editor.testRun.errors.unknownTestError')
             setTestRunStatus('ERROR')
             setTestError(message)
           } finally {
             setIsTestRunning(false)
             void loadRecentLogs().catch(() => {
-              setTestError((previous) => previous ?? 'Nie udalo sie odswiezyc logow po tescie.')
+              setTestError((previous) => previous ?? tx('editor.testRun.errors.refreshLogsFailed'))
             })
           }
         }}
@@ -625,7 +649,8 @@ function EditorScreen(): React.JSX.Element {
           }
 
           const classified = classifyRunFailure(stopResult)
-          setTestError(`${classified.message} [attempt=${attemptId}]`)
+          const classifiedMessage = tx(classified.messageKey, classified.variables)
+          setTestError(`${classifiedMessage} [attempt=${attemptId}]`)
         }}
       />
     </section>

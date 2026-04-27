@@ -1,0 +1,46 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv4.1.2 [39m[90mC:/Users/kubap/Desktop/Keybrix[39m
+
+ [31m❯[39m src/main/services/macro.service.test.ts [2m([22m[2m13 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1103[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects shortcut conflicts on save [33m 428[2mms[22m[39m
+     [32m✓[39m reserves available shortcut and rejects used one[32m 48[2mms[22m[39m
+     [32m✓[39m rejects invalid global shortcut format on save[32m 40[2mms[22m[39m
+     [32m✓[39m runs macro via main runtime flow when global master is enabled[32m 60[2mms[22m[39m
+[31m     [31m×[31m starts macro when shortcut trigger is pressed while idle[39m[32m 51[2mms[22m[39m
+     [32m✓[39m passes commands-first payload to runner when nodes are invalid[32m 58[2mms[22m[39m
+     [32m✓[39m blocks run when global master is disabled[32m 46[2mms[22m[39m
+     [32m✓[39m keeps shortcut arm state enabled when run fails[32m 66[2mms[22m[39m
+     [32m✓[39m cancels active run when macro is deleted during execution[32m 61[2mms[22m[39m
+     [32m✓[39m toggles running macro off when shortcut is triggered again[32m 64[2mms[22m[39m
+     [32m✓[39m stops running macro via explicit stop API[32m 60[2mms[22m[39m
+     [32m✓[39m reconciles stale runtime status on startup[32m 65[2mms[22m[39m
+     [32m✓[39m saves macro as disabled when global shortcut registration fails[32m 52[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/main/services/macro.service.test.ts[2m > [22mMacroService[2m > [22mstarts macro when shortcut trigger is pressed while idle
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m src/main/services/macro.service.test.ts:[2m160:28[22m[39m
+    [90m158|[39m     [35mconst[39m result [33m=[39m [35mawait[39m macroService[33m.[39m[34mtriggerByShortcut[39m(saved[33m.[39mid)
+    [90m159|[39m
+    [90m160|[39m     [34mexpect[39m(result[33m.[39msuccess)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   |[39m                            [31m^[39m
+    [90m161|[39m     [34mexpect[39m(macroService[33m.[39m[34mgetById[39m(saved[33m.[39mid)[33m?.[39mstatus)[33m.[39m[34mtoBe[39m([32m'ACTIVE'[39m)
+    [90m162|[39m   })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 14:50:33
+[2m   Duration [22m 3.06s[2m (transform 395ms, setup 272ms, import 118ms, tests 1.10s, environment 1.21s)[22m
+

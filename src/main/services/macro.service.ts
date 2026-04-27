@@ -219,6 +219,12 @@ export class MacroService {
               level: 'WARN',
               message: `Shortcut registration failed for '${macro.name}'.`
             })
+            
+            this.emitStatus({
+              id: macro.id,
+              newStatus: 'IDLE'
+            })
+            
             return false
           }
         } else {
@@ -443,6 +449,17 @@ export class MacroService {
   }
 
   async triggerByShortcut(id: string): Promise<MacroServiceRunResult> {
+    const macro = macroRepository.getById(id)
+    if (!macro || !macro.isActive) {
+      const runId = globalThis.crypto.randomUUID()
+      logsService.append({
+        level: 'WARN',
+        runId,
+        message: `Shortcut triggered but macro '${id}' is not active or not found.`
+      })
+      return { runId, success: false, reasonCode: 'NOT_RUNNING' }
+    }
+
     if (this.activeRuns.has(id)) {
       const runId = globalThis.crypto.randomUUID()
       this.cancelledRuns.add(id)

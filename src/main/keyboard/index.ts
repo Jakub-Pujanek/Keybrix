@@ -29,6 +29,10 @@ const isModifierToken = (token: string): boolean => {
   )
 }
 
+const hasModifierToken = (tokens: string[]): boolean => {
+  return tokens.some((token) => isModifierToken(token))
+}
+
 const toElectronAccelerator = (shortcut: string): string | null => {
   const tokens = normalizeShortcut(shortcut)
     .split('+')
@@ -125,7 +129,7 @@ const toElectronAccelerator = (shortcut: string): string | null => {
     return null
   }
 
-  if (tokens.every((token) => isModifierToken(token))) {
+  if (!hasModifierToken(tokens)) {
     return null
   }
 

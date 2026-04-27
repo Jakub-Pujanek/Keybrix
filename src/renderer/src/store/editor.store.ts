@@ -25,6 +25,7 @@ type EditorState = {
   mousePickerTargetNodeId: string | null
   mousePickerPreview: { x: number; y: number } | null
   isMousePickerActive: boolean
+  ensureActiveMacroInvariant: (availableMacroIds: string[]) => void
   loadEditorMacro: (macroId?: string) => Promise<void>
   setMacroTitle: (nextTitle: string) => void
   addNode: (type: EditorBlockType, position?: { x: number; y: number }) => void
@@ -154,6 +155,9 @@ const blockTitleByType: Record<EditorBlockType, string> = {
   INFINITE_LOOP: 'Infinite Loop'
 }
 
+const DEFAULT_EDITOR_TITLE = 'My First Macro'
+const DEFAULT_EDITOR_SHORTCUT = 'CTRL + SHIFT + M'
+
 const defaultNodes: EditorNode[] = [
   {
     id: 'node-start',
@@ -230,6 +234,37 @@ const cloneNodes = (nodes: EditorNode[]): EditorNode[] =>
     ...node,
     payload: { ...node.payload }
   }))
+
+const buildSafeEditorState = (): Pick<
+  EditorState,
+  | 'nodes'
+  | 'zoom'
+  | 'activeMacroId'
+  | 'macroTitle'
+  | 'shortcut'
+  | 'isRecordingShortcut'
+  | 'recordingSource'
+  | 'recordingNodeId'
+  | 'heldKeys'
+  | 'comboKeys'
+  | 'mousePickerTargetNodeId'
+  | 'mousePickerPreview'
+  | 'isMousePickerActive'
+> => ({
+  nodes: cloneNodes(defaultNodes),
+  zoom: 1,
+  activeMacroId: null,
+  macroTitle: DEFAULT_EDITOR_TITLE,
+  shortcut: DEFAULT_EDITOR_SHORTCUT,
+  isRecordingShortcut: false,
+  recordingSource: null,
+  recordingNodeId: null,
+  heldKeys: [],
+  comboKeys: [],
+  mousePickerTargetNodeId: null,
+  mousePickerPreview: null,
+  isMousePickerActive: false
+})
 
 const normalizeKey = (code: string): string => {
   if (code === 'ControlLeft' || code === 'ControlRight') return 'CTRL'
@@ -378,23 +413,27 @@ const collectChainIds = (nodes: EditorNode[], rootId: string): Set<string> => {
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  nodes: cloneNodes(defaultNodes),
-  zoom: 1,
-  activeMacroId: null,
-  macroTitle: 'My First Macro',
-  shortcut: 'CTRL + SHIFT + M',
-  isRecordingShortcut: false,
-  recordingSource: null,
-  recordingNodeId: null,
-  heldKeys: [],
-  comboKeys: [],
-  mousePickerTargetNodeId: null,
-  mousePickerPreview: null,
-  isMousePickerActive: false,
+  ...buildSafeEditorState(),
+
+  ensureActiveMacroInvariant: (availableMacroIds) => {
+    const { activeMacroId } = get()
+    if (!activeMacroId) {
+      return
+    }
+
+    if (availableMacroIds.includes(activeMacroId)) {
+      return
+    }
+
+    set(buildSafeEditorState())
+  },
 
   loadEditorMacro: async (macroId) => {
     const selected = macroId ? await window.api.macros.getById(macroId) : await firstMacro()
-    if (!selected) return
+    if (!selected) {
+      set(buildSafeEditorState())
+      return
+    }
 
     const parsedNodes = EditorDocumentSchema.safeParse(selected.blocksJson)
     const formattedShortcut = selected.shortcut.replace(/\+/g, ' + ')
@@ -573,7 +612,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const nextHeld = heldKeys.includes(event.code) ? heldKeys : [...heldKeys, event.code]
     const nextComboBase = comboKeys.includes(event.code) ? comboKeys : [...comboKeys, event.code]
-    const modifiers = nextComboBase.filter((code) => isModifierCode(code))
+    const modifiers = nextComboBase.filter((code) => isModifierCode(code)).slice(-2)
     const primaries = nextComboBase.filter((code) => !isModifierCode(code))
     const nextCombo =
       primaries.length > 0 ? [...modifiers, primaries[primaries.length - 1]] : modifiers
@@ -683,8 +722,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       id: activeMacroId ?? undefined,
       name: macroTitle,
       shortcut: shortcut.replace(/\s\+\s/g, '+'),
-      isActive: false,
-      status: 'IDLE',
       blocksJson: {
         commands,
         nodes: synchronizedNodes,

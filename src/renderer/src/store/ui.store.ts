@@ -1,10 +1,16 @@
 import { create } from 'zustand'
 
+type DeleteMacroConfirmTarget = {
+  id: string
+  name: string
+}
+
 type UiState = {
   isSidebarCompact: boolean
   isCreateMacroModalOpen: boolean
   isNotificationsPanelOpen: boolean
   isHelpPanelOpen: boolean
+  deleteMacroConfirmTarget: DeleteMacroConfirmTarget | null
   toggleSidebarCompact: () => void
   openCreateMacroModal: () => void
   closeCreateMacroModal: () => void
@@ -12,6 +18,8 @@ type UiState = {
   closeNotificationsPanel: () => void
   toggleHelpPanel: () => void
   closeHelpPanel: () => void
+  openDeleteMacroConfirm: (target: DeleteMacroConfirmTarget) => void
+  closeDeleteMacroConfirm: () => void
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -19,6 +27,7 @@ export const useUiStore = create<UiState>((set) => ({
   isCreateMacroModalOpen: false,
   isNotificationsPanelOpen: false,
   isHelpPanelOpen: false,
+  deleteMacroConfirmTarget: null,
   toggleSidebarCompact: () =>
     set((state) => ({
       isSidebarCompact: !state.isSidebarCompact
@@ -48,5 +57,13 @@ export const useUiStore = create<UiState>((set) => ({
   closeHelpPanel: () =>
     set({
       isHelpPanelOpen: false
+    }),
+  openDeleteMacroConfirm: (target) =>
+    set({
+      deleteMacroConfirmTarget: target
+    }),
+  closeDeleteMacroConfirm: () =>
+    set({
+      deleteMacroConfirmTarget: null
     })
 }))

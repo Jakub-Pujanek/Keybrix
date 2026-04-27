@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KeybrixApi, MacroStatus } from '../../../shared/api'
 import { useMacroStore } from './macro.store'
+import { useEditorStore } from './editor.store'
 
 const createApiMock = (
   onMacroStatusChange: KeybrixApi['system']['onMacroStatusChange']
@@ -88,6 +89,11 @@ describe('macro.store subscribeMacroStatus', () => {
       ],
       isLoading: false,
       loadError: null
+    })
+    useEditorStore.setState({
+      activeMacroId: null,
+      macroTitle: 'My First Macro',
+      shortcut: 'CTRL + SHIFT + M'
     })
   })
 
@@ -187,5 +193,69 @@ describe('macro.store subscribeMacroStatus', () => {
 
     expect(getAllMock).toHaveBeenCalledTimes(1)
     expect(useMacroStore.getState().macros[0]?.isActive).toBe(true)
+  })
+
+  it('clears editor active selection when deleted macro was selected', async () => {
+    window.api = createApiMock(() => vi.fn())
+
+    useMacroStore.setState({
+      macros: [
+        {
+          id: 'macro-1',
+          name: 'Disposable Macro',
+          description: 'test',
+          shortcut: 'CTRL+1',
+          isActive: false,
+          status: 'IDLE',
+          blocksJson: {}
+        }
+      ]
+    })
+    useEditorStore.setState({
+      activeMacroId: 'macro-1',
+      macroTitle: 'Disposable Macro',
+      shortcut: 'CTRL + 1',
+      nodes: []
+    })
+
+    const success = await useMacroStore.getState().deleteMacro('macro-1')
+
+    expect(success).toBe(true)
+    expect(useEditorStore.getState().activeMacroId).toBeNull()
+    expect(useEditorStore.getState().macroTitle).toBe('My First Macro')
+  })
+
+  it('clears editor active selection when refreshed macro list misses selected macro', async () => {
+    const getAllMock = vi.fn(async () => [
+      {
+        id: 'macro-2',
+        name: 'Other Macro',
+        description: 'test',
+        shortcut: 'CTRL+2',
+        isActive: false,
+        status: 'IDLE' as const,
+        blocksJson: {}
+      }
+    ])
+
+    window.api = {
+      ...createApiMock(() => vi.fn()),
+      macros: {
+        ...createApiMock(() => vi.fn()).macros,
+        getAll: getAllMock
+      }
+    }
+
+    useEditorStore.setState({
+      activeMacroId: 'macro-1',
+      macroTitle: 'Stale Selection',
+      shortcut: 'CTRL + SHIFT + 9',
+      nodes: []
+    })
+
+    await useMacroStore.getState().loadMacros()
+
+    expect(getAllMock).toHaveBeenCalledTimes(1)
+    expect(useEditorStore.getState().activeMacroId).toBeNull()
   })
 })

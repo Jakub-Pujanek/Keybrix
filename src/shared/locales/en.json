@@ -23,6 +23,21 @@
     "actions": {
       "notifications": "Notifications",
       "help": "Help"
+    },
+    "notificationsPanel": {
+      "title": "Recent activity",
+      "close": "Close",
+      "empty": "No activity yet."
+    },
+    "helpPanel": {
+      "title": "Quick help",
+      "close": "Close",
+      "items": {
+        "create": "Create macros from Dashboard or header button.",
+        "edit": "Use pencil on a macro card to open it in the editor.",
+        "record": "Record shortcut in editor top bar and save macro.",
+        "testRun": "Use Test Run to quickly validate a macro."
+      }
     }
   },
   "dashboard": {
@@ -32,11 +47,33 @@
       "successRate": "Success Rate",
       "activeNow": "Active Now"
     },
-    "createCustomBlock": "Create Custom Block"
+    "createCustomBlock": "Create Custom Block",
+    "deleteConfirm": {
+      "title": "Delete macro",
+      "body": "Are you sure you want to delete '{{macroName}}'? This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "confirming": "Deleting..."
+    }
   },
   "macro": {
     "newMacro": "New Macro",
     "run": "Run macro",
+    "createModal": {
+      "description": "Enter a name for the new macro.",
+      "nameLabel": "Macro name",
+      "namePlaceholder": "My New Macro",
+      "openNow": "Open in editor right away",
+      "errors": {
+        "required": "Macro name is required.",
+        "createFailed": "Failed to create macro."
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "create": "Create macro",
+        "creating": "Creating..."
+      }
+    },
     "status": {
       "RUNNING": "RUNNING",
       "IDLE": "IDLE",
@@ -75,6 +112,42 @@
       "clear": "Clear",
       "testRun": "Test Run",
       "saveMacro": "Save Macro"
+    },
+    "testRun": {
+      "title": "Live macro test",
+      "description": "Click in the field and run a test. If macro types text, you will see results here.",
+      "sandboxPlaceholder": "Test field: click/type effects will appear here",
+      "logsTitle": "Execution logs",
+      "emptyLogs": "No logs yet. Run macro test.",
+      "reasonCode": "reason: {{reasonCode}}",
+      "actions": {
+        "close": "Close",
+        "run": "Run test now",
+        "stop": "Stop test"
+      },
+      "status": {
+        "IDLE": "Idle",
+        "RUNNING": "Running",
+        "SUCCESS": "Success",
+        "BLOCKED": "Blocked",
+        "TIMEOUT": "Timeout",
+        "ERROR": "Error"
+      },
+      "errors": {
+        "alreadyRunning": "This macro is already running.",
+        "notRunning": "This macro is not currently running.",
+        "macroNotFound": "Macro was not found for test run.",
+        "invalidMacroId": "Invalid macro identifier.",
+        "saveFailed": "Could not save macro before test run.",
+        "globalMasterOff": "Global Master is off. Enable it in settings.",
+        "waylandBlocked": "Wayland blocks simulated input. Switch session to X11.",
+        "commandTimeout": "Runtime command timed out. Check execution logs.",
+        "runtimeFailed": "Macro runtime failed. Check execution logs.",
+        "ipcError": "IPC communication error between renderer and main.",
+        "genericWithCode": "Could not start macro test. Code: {{reasonCode}}.",
+        "unknownTestError": "Unknown test error.",
+        "refreshLogsFailed": "Could not refresh logs after test run."
+      }
     },
     "shortcut": {
       "rec": "REC",

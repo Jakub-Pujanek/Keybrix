@@ -34,11 +34,21 @@ function Header(): React.JSX.Element {
   const closeHelpPanel = useUiStore((state) => state.closeHelpPanel)
 
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
+  const [createName, setCreateName] = useState('')
+  const [createOpenNow, setCreateOpenNow] = useState(false)
+  const [createValidationError, setCreateValidationError] = useState<string | null>(null)
+  const [createRequestError, setCreateRequestError] = useState<string | null>(null)
   const { tx } = useI18n()
   const isEditor = activeScreen === 'editor'
   const isSettings = activeScreen === 'settings'
   const isWaylandGuide = activeScreen === 'wayland-guide'
+
+  const resetCreateMacroDraft = (): void => {
+    setCreateName('')
+    setCreateOpenNow(false)
+    setCreateValidationError(null)
+    setCreateRequestError(null)
+  }
 
   const title = isEditor
     ? tx('header.title.editor')
@@ -77,7 +87,7 @@ function Header(): React.JSX.Element {
         </Button>
         <CreateMacroButton
           onClick={() => {
-            setCreateError(null)
+            resetCreateMacroDraft()
             openCreateMacroModal()
             closeNotificationsPanel()
             closeHelpPanel()
@@ -88,9 +98,11 @@ function Header(): React.JSX.Element {
       {isNotificationsPanelOpen ? (
         <article className="absolute top-full right-20 z-1200 mt-3 w-90 rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-(--kb-text-main)">Recent activity</h3>
+            <h3 className="text-sm font-semibold text-(--kb-text-main)">
+              {tx('header.notificationsPanel.title')}
+            </h3>
             <Button variant="ghost" className="h-7 px-2 text-xs" onClick={closeNotificationsPanel}>
-              Close
+              {tx('header.notificationsPanel.close')}
             </Button>
           </div>
           <ul className="space-y-2 text-xs text-(--kb-text-muted)">
@@ -100,7 +112,9 @@ function Header(): React.JSX.Element {
                 <p className="mt-1">{log.message}</p>
               </li>
             ))}
-            {logs.length === 0 ? <li className="px-1 py-2">No activity yet.</li> : null}
+            {logs.length === 0 ? (
+              <li className="px-1 py-2">{tx('header.notificationsPanel.empty')}</li>
+            ) : null}
           </ul>
         </article>
       ) : null}
@@ -108,46 +122,78 @@ function Header(): React.JSX.Element {
       {isHelpPanelOpen ? (
         <article className="absolute top-full right-8 z-1200 mt-3 w-90 rounded-xl border border-(--kb-border) bg-(--kb-bg-surface) p-4 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.8)]">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-(--kb-text-main)">Quick help</h3>
+            <h3 className="text-sm font-semibold text-(--kb-text-main)">
+              {tx('header.helpPanel.title')}
+            </h3>
             <Button variant="ghost" className="h-7 px-2 text-xs" onClick={closeHelpPanel}>
-              Close
+              {tx('header.helpPanel.close')}
             </Button>
           </div>
           <ul className="space-y-2 text-xs text-(--kb-text-muted)">
-            <li>Create macros from Dashboard or header button.</li>
-            <li>Use pencil on a macro card to open it in the editor.</li>
-            <li>Record shortcut in editor top bar and save macro.</li>
-            <li>Use Test Run to quickly validate a macro.</li>
+            <li>{tx('header.helpPanel.items.create')}</li>
+            <li>{tx('header.helpPanel.items.edit')}</li>
+            <li>{tx('header.helpPanel.items.record')}</li>
+            <li>{tx('header.helpPanel.items.testRun')}</li>
           </ul>
         </article>
       ) : null}
 
       <CreateMacroModal
         isOpen={isCreateMacroModalOpen}
+        name={createName}
+        openNow={createOpenNow}
         isSubmitting={isSubmittingCreate}
-        submitError={createError}
+        validationError={createValidationError}
+        submitError={createRequestError}
+        onNameChange={(value) => {
+          setCreateName(value)
+          if (createValidationError) {
+            setCreateValidationError(null)
+          }
+          if (createRequestError) {
+            setCreateRequestError(null)
+          }
+        }}
+        onOpenNowChange={setCreateOpenNow}
         onClose={() => {
-          setCreateError(null)
+          if (isSubmittingCreate) {
+            return
+          }
+
+          resetCreateMacroDraft()
           closeCreateMacroModal()
         }}
-        onSubmit={async ({ name, openNow }) => {
-          setIsSubmittingCreate(true)
-          try {
-            const created = await createMacro(name)
-            await loadMacros()
-
-            if (openNow) {
-              await loadEditorMacro(created.id)
-              setActiveScreen('editor')
-            }
-
-            closeCreateMacroModal()
-            setCreateError(null)
-          } catch (error) {
-            setCreateError(error instanceof Error ? error.message : 'Failed to create macro.')
-          } finally {
-            setIsSubmittingCreate(false)
+        onSubmit={() => {
+          const trimmed = createName.trim()
+          if (trimmed.length === 0) {
+            setCreateValidationError(tx('macro.createModal.errors.required'))
+            return
           }
+
+          setCreateValidationError(null)
+          setCreateRequestError(null)
+
+          setIsSubmittingCreate(true)
+          void (async () => {
+            try {
+              const created = await createMacro(trimmed.slice(0, 60))
+              await loadMacros()
+
+              if (createOpenNow) {
+                await loadEditorMacro(created.id)
+                setActiveScreen('editor')
+              }
+
+              closeCreateMacroModal()
+              resetCreateMacroDraft()
+            } catch (error) {
+              setCreateRequestError(
+                error instanceof Error ? error.message : tx('macro.createModal.errors.createFailed')
+              )
+            } finally {
+              setIsSubmittingCreate(false)
+            }
+          })()
         }}
       />
     </header>

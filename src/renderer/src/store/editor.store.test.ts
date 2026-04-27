@@ -155,4 +155,21 @@ describe('editor.store mouse picker', () => {
     expect(node?.payload.x).toBe(0)
     expect(node?.payload.y).toBe(91)
   })
+
+  it('resets to safe editor state when active macro no longer exists', () => {
+    useEditorStore.setState({
+      activeMacroId: 'missing-macro',
+      macroTitle: 'Stale Macro',
+      shortcut: 'CTRL + X',
+      nodes: []
+    })
+
+    useEditorStore.getState().ensureActiveMacroInvariant(['macro-2'])
+
+    const state = useEditorStore.getState()
+    expect(state.activeMacroId).toBeNull()
+    expect(state.macroTitle).toBe('My First Macro')
+    expect(state.shortcut).toBe('CTRL + SHIFT + M')
+    expect(state.nodes.length).toBeGreaterThan(0)
+  })
 })

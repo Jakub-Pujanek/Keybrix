@@ -150,4 +150,21 @@ describe('ShortcutManager', () => {
     expect(registered).toBe(false)
     expect(state.callbacks.size).toBe(0)
   })
+
+  it('rejects shortcuts without modifier keys', () => {
+    const { state, registry } = createRegistry()
+    const manager = new ShortcutManager(registry)
+
+    expect(manager.isShortcutFormatSupported('A')).toBe(false)
+    expect(manager.isShortcutFormatSupported('F8')).toBe(false)
+
+    const registered = manager.registerMacro({
+      macroId: 'm1',
+      shortcut: 'A',
+      onTrigger: vi.fn()
+    })
+
+    expect(registered).toBe(false)
+    expect(state.callbacks.size).toBe(0)
+  })
 })

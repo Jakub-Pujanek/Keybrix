@@ -115,6 +115,7 @@ describe('MacroService', () => {
     expect(macroService.reserveShortcut({ keys: 'CTRL+X', source: 'topbar' })).toBe(true)
     expect(macroService.reserveShortcut({ keys: 'CTRL + R', source: 'topbar' })).toBe(false)
     expect(macroService.reserveShortcut({ keys: 'CTRL+O+P', source: 'topbar' })).toBe(false)
+    expect(macroService.reserveShortcut({ keys: 'X', source: 'topbar' })).toBe(false)
   })
 
   it('rejects invalid global shortcut format on save', async () => {
@@ -145,7 +146,7 @@ describe('MacroService', () => {
     expect(macroService.getById(saved.id)?.status).toBe('ACTIVE')
   })
 
-  it('starts macro when shortcut trigger is pressed while idle', async () => {
+  it('ignores shortcut trigger when macro is not active', async () => {
     const { macroService } = await import('./macro.service')
 
     const saved = macroService.save({
@@ -156,8 +157,9 @@ describe('MacroService', () => {
 
     const result = await macroService.triggerByShortcut(saved.id)
 
-    expect(result.success).toBe(true)
-    expect(macroService.getById(saved.id)?.status).toBe('ACTIVE')
+    expect(result.success).toBe(false)
+    expect(result.reasonCode).toBe('NOT_RUNNING')
+    expect(macroService.getById(saved.id)?.status).toBe('IDLE')
   })
 
   it('passes commands-first payload to runner when nodes are invalid', async () => {

@@ -23,6 +23,21 @@
     "actions": {
       "notifications": "Powiadomienia",
       "help": "Pomoc"
+    },
+    "notificationsPanel": {
+      "title": "Ostatnia aktywnosc",
+      "close": "Zamknij",
+      "empty": "Brak aktywnosci."
+    },
+    "helpPanel": {
+      "title": "Szybka pomoc",
+      "close": "Zamknij",
+      "items": {
+        "create": "Tworz makra z poziomu panelu lub przycisku w naglowku.",
+        "edit": "Uzyj ikony olowka na karcie makra, aby otworzyc je w edytorze.",
+        "record": "Nagraj skrot w gornym pasku edytora i zapisz makro.",
+        "testRun": "Uzyj Test Run, aby szybko sprawdzic dzialanie makra."
+      }
     }
   },
   "dashboard": {
@@ -32,11 +47,33 @@
       "successRate": "Skuteczność",
       "activeNow": "Aktywne Teraz"
     },
-    "createCustomBlock": "Utwórz Własny Blok"
+    "createCustomBlock": "Utwórz Własny Blok",
+    "deleteConfirm": {
+      "title": "Usun makro",
+      "body": "Czy na pewno usunac '{{macroName}}'? Tej operacji nie mozna cofnac.",
+      "cancel": "Anuluj",
+      "confirm": "Usun",
+      "confirming": "Usuwanie..."
+    }
   },
   "macro": {
     "newMacro": "Nowe Makro",
     "run": "Uruchom makro",
+    "createModal": {
+      "description": "Wpisz nazwe nowego makra.",
+      "nameLabel": "Nazwa makra",
+      "namePlaceholder": "Moje nowe makro",
+      "openNow": "Otworz od razu w edytorze",
+      "errors": {
+        "required": "Nazwa makra jest wymagana.",
+        "createFailed": "Nie udalo sie utworzyc makra."
+      },
+      "actions": {
+        "cancel": "Anuluj",
+        "create": "Utworz makro",
+        "creating": "Tworzenie..."
+      }
+    },
     "status": {
       "RUNNING": "DZIAŁA",
       "IDLE": "BEZCZYNNE",
@@ -75,6 +112,42 @@
       "clear": "Wyczyść",
       "testRun": "Uruchom Test",
       "saveMacro": "Zapisz Makro"
+    },
+    "testRun": {
+      "title": "Test makra na zywo",
+      "description": "Kliknij w pole i uruchom test. Jesli makro wpisuje tekst, zobaczysz rezultat tutaj.",
+      "sandboxPlaceholder": "Pole testowe: tutaj zobaczysz efekt klikow i pisania",
+      "logsTitle": "Logi wykonania",
+      "emptyLogs": "Brak logow. Uruchom test makra.",
+      "reasonCode": "reason: {{reasonCode}}",
+      "actions": {
+        "close": "Zamknij",
+        "run": "Uruchom test teraz",
+        "stop": "Zatrzymaj test"
+      },
+      "status": {
+        "IDLE": "Oczekuje",
+        "RUNNING": "Uruchamianie",
+        "SUCCESS": "Sukces",
+        "BLOCKED": "Zablokowane",
+        "TIMEOUT": "Timeout",
+        "ERROR": "Blad"
+      },
+      "errors": {
+        "alreadyRunning": "To makro jest juz uruchomione.",
+        "notRunning": "To makro nie jest aktualnie uruchomione.",
+        "macroNotFound": "Nie znaleziono makra do uruchomienia testu.",
+        "invalidMacroId": "Nieprawidlowy identyfikator makra.",
+        "saveFailed": "Nie udalo sie zapisac makra przed uruchomieniem testu.",
+        "globalMasterOff": "Global Master jest wylaczony. Wlacz go w ustawieniach.",
+        "waylandBlocked": "Srodowisko Wayland blokuje symulowane wejscie. Przelacz sesje na X11.",
+        "commandTimeout": "Komenda runtime przekroczyla limit czasu. Sprawdz logi wykonania.",
+        "runtimeFailed": "Runtime makra zakonczyl sie bledem. Sprawdz logi wykonania.",
+        "ipcError": "Blad komunikacji IPC miedzy renderer a main.",
+        "genericWithCode": "Nie udalo sie uruchomic testu makra. Kod: {{reasonCode}}.",
+        "unknownTestError": "Nieznany blad testu.",
+        "refreshLogsFailed": "Nie udalo sie odswiezyc logow po tescie."
+      }
     },
     "shortcut": {
       "rec": "NAGRAJ",

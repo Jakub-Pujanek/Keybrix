@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import RecentActivityLogs from '../composites/activity/RecentActivityLogs'
 import MacroCard from '../composites/macro/MacroCard'
 import StatCard from '../composites/StatCard'
+import ConfirmModal from '../composites/ui/ConfirmModal'
 import {
   useActivityStore,
   useAppStore,
@@ -38,6 +39,11 @@ function DashboardScreen(): React.JSX.Element {
 
   const loadEditorMacro = useEditorStore((state) => state.loadEditorMacro)
   const openCreateMacroModal = useUiStore((state) => state.openCreateMacroModal)
+  const deleteMacroConfirmTarget = useUiStore((state) => state.deleteMacroConfirmTarget)
+  const openDeleteMacroConfirm = useUiStore((state) => state.openDeleteMacroConfirm)
+  const closeDeleteMacroConfirm = useUiStore((state) => state.closeDeleteMacroConfirm)
+
+  const [isDeleteMacroConfirming, setIsDeleteMacroConfirming] = useState(false)
 
   const logs = useActivityStore((state) => state.logs)
   const loadRecentLogs = useActivityStore((state) => state.loadRecentLogs)
@@ -65,6 +71,17 @@ function DashboardScreen(): React.JSX.Element {
     subscribeRealtimeLogs,
     subscribeSystemStatus
   ])
+
+  useEffect(() => {
+    if (!deleteMacroConfirmTarget) {
+      return
+    }
+
+    const targetStillExists = macros.some((macro) => macro.id === deleteMacroConfirmTarget.id)
+    if (!targetStillExists) {
+      closeDeleteMacroConfirm()
+    }
+  }, [closeDeleteMacroConfirm, deleteMacroConfirmTarget, macros])
 
   return (
     <section data-testid="dashboard-screen" className="space-y-8">
@@ -164,16 +181,15 @@ function DashboardScreen(): React.JSX.Element {
               })()
             }}
             onDelete={(id) => {
-              void (async () => {
-                const accepted = window.confirm('Delete this macro?')
-                if (!accepted) return
+              const targetMacro = macros.find((macro) => macro.id === id)
+              if (!targetMacro) {
+                return
+              }
 
-                const success = await deleteMacro(id)
-                if (!success) return
-
-                await loadMacros()
-                await loadDashboardStats()
-              })()
+              openDeleteMacroConfirm({
+                id: targetMacro.id,
+                name: targetMacro.name
+              })
             }}
           />
         ))}
@@ -195,6 +211,49 @@ function DashboardScreen(): React.JSX.Element {
       </div>
 
       <RecentActivityLogs logs={logs} />
+
+      <ConfirmModal
+        isOpen={Boolean(deleteMacroConfirmTarget)}
+        title={tx('dashboard.deleteConfirm.title')}
+        description={tx('dashboard.deleteConfirm.body', {
+          macroName: deleteMacroConfirmTarget?.name ?? ''
+        })}
+        cancelLabel={tx('dashboard.deleteConfirm.cancel')}
+        confirmLabel={
+          isDeleteMacroConfirming
+            ? tx('dashboard.deleteConfirm.confirming')
+            : tx('dashboard.deleteConfirm.confirm')
+        }
+        isConfirming={isDeleteMacroConfirming}
+        onCancel={() => {
+          if (isDeleteMacroConfirming) {
+            return
+          }
+
+          closeDeleteMacroConfirm()
+        }}
+        onConfirm={() => {
+          if (!deleteMacroConfirmTarget || isDeleteMacroConfirming) {
+            return
+          }
+
+          setIsDeleteMacroConfirming(true)
+          void (async () => {
+            try {
+              const success = await deleteMacro(deleteMacroConfirmTarget.id)
+              if (!success) {
+                return
+              }
+
+              await loadMacros()
+              await loadDashboardStats()
+              closeDeleteMacroConfirm()
+            } finally {
+              setIsDeleteMacroConfirming(false)
+            }
+          })()
+        }}
+      />
     </section>
   )
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Macro, MacroStatus } from '../../../shared/api'
+import { useEditorStore } from './editor.store'
 
 type MacroState = {
   macros: Macro[]
@@ -62,6 +63,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
         isLoading: false,
         loadError: null
       }))
+      useEditorStore.getState().ensureActiveMacroInvariant(macros.map((macro) => macro.id))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load macros.'
       console.error('[macro.store] loadMacros failed:', error)
@@ -106,9 +108,13 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     const success = await window.api.macros.delete(id)
     if (!success) return false
 
-    set((state) => ({
-      macros: state.macros.filter((macro) => macro.id !== id)
-    }))
+    const remainingMacros = get().macros.filter((macro) => macro.id !== id)
+
+    set({
+      macros: remainingMacros
+    })
+
+    useEditorStore.getState().ensureActiveMacroInvariant(remainingMacros.map((macro) => macro.id))
 
     return true
   },
