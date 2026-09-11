@@ -267,6 +267,7 @@ function EditorScreen(): React.JSX.Element {
   const libraryPanelRef = useRef<HTMLDivElement | null>(null)
 
   const nodes = useEditorStore((state) => state.nodes)
+  const nodeHeights = useEditorStore((state) => state.nodeHeights)
   const zoom = useEditorStore((state) => state.zoom)
   const activeMacroId = useEditorStore((state) => state.activeMacroId)
   const macroTitle = useEditorStore((state) => state.macroTitle)
@@ -281,6 +282,7 @@ function EditorScreen(): React.JSX.Element {
   const setMacroTitle = useEditorStore((state) => state.setMacroTitle)
   const addNode = useEditorStore((state) => state.addNode)
   const setManyNodePositions = useEditorStore((state) => state.setManyNodePositions)
+  const setNodeHeight = useEditorStore((state) => state.setNodeHeight)
   const setNodeNext = useEditorStore((state) => state.setNodeNext)
   const clearIncomingConnection = useEditorStore((state) => state.clearIncomingConnection)
   const removeNodeTree = useEditorStore((state) => state.removeNodeTree)
@@ -339,6 +341,7 @@ function EditorScreen(): React.JSX.Element {
     handleBlockPointerDown
   } = useEditorCanvasInteractions({
     nodes,
+    nodeHeights,
     zoom,
     setManyNodePositions,
     setNodeNext,
@@ -525,6 +528,7 @@ function EditorScreen(): React.JSX.Element {
             onStopMousePicker={() => {
               void stopMousePicker()
             }}
+            onMeasureNodeHeight={setNodeHeight}
           />
 
           <CanvasControls

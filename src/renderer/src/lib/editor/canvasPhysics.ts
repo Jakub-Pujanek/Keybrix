@@ -12,10 +12,10 @@ const BODY_HEIGHT_BY_TYPE: Record<EditorNode['type'], number> = {
   HOLD_KEY: 102,
   EXECUTE_SHORTCUT: 102,
   WAIT: 102,
-  MOUSE_CLICK: 102,
-  AUTOCLICKER_TIMED: 102,
+  MOUSE_CLICK: 120,
+  AUTOCLICKER_TIMED: 136,
   AUTOCLICKER_INFINITE: 102,
-  MOVE_MOUSE_DURATION: 102,
+  MOVE_MOUSE_DURATION: 152,
   TYPE_TEXT: 102,
   REPEAT: 102,
   INFINITE_LOOP: 102
@@ -26,6 +26,8 @@ export type SnapCandidate = {
   snapX: number
   snapY: number
 }
+
+export type NodeHeightMap = Readonly<Record<string, number>>
 
 type ConnectionBounds = {
   left: number
@@ -39,18 +41,18 @@ export type SnapSpatialIndex = {
   buckets: Map<string, EditorNode[]>
 }
 
-export const getBlockTotalHeight = (node: EditorNode): number => {
-  return BODY_HEIGHT_BY_TYPE[node.type] + BOTTOM_TAB_HEIGHT
+// BODY_HEIGHT_BY_TYPE is only a pre-measurement fallback: the rendered block
+// height is content-driven (i18n labels, wrapped rows), so the real value is
+// measured from the DOM in CanvasGrid and passed here via NodeHeightMap.
+export const getBlockTotalHeight = (node: EditorNode, heights?: NodeHeightMap): number => {
+  return (heights?.[node.id] ?? BODY_HEIGHT_BY_TYPE[node.type]) + BOTTOM_TAB_HEIGHT
 }
 
-export const getConnectedChildY = (parentNode: EditorNode): number => {
-  return parentNode.y + getBlockTotalHeight(parentNode) - TOP_NOTCH_DEPTH
+export const getConnectedChildY = (parentNode: EditorNode, heights?: NodeHeightMap): number => {
+  return parentNode.y + getBlockTotalHeight(parentNode, heights) - TOP_NOTCH_DEPTH
 }
 
-const getConnectionBounds = (parentNode: EditorNode): ConnectionBounds => {
-  const targetX = parentNode.x
-  const targetY = getConnectedChildY(parentNode)
-
+const getConnectionBounds = (targetX: number, targetY: number): ConnectionBounds => {
   return {
     left: targetX - SNAP_THRESHOLD_X,
     right: targetX + SNAP_THRESHOLD_X,
@@ -65,12 +67,13 @@ const getCellKey = (x: number, y: number, cellSize: number): string => {
 
 export const buildSnapSpatialIndex = (
   nodes: EditorNode[],
+  heights?: NodeHeightMap,
   cellSize = SNAP_INDEX_CELL_SIZE
 ): SnapSpatialIndex => {
   const buckets = new Map<string, EditorNode[]>()
 
   for (const node of nodes) {
-    const key = getCellKey(node.x, getConnectedChildY(node), cellSize)
+    const key = getCellKey(node.x, getConnectedChildY(node, heights), cellSize)
     const bucket = buckets.get(key)
     if (!bucket) {
       buckets.set(key, [node])
@@ -152,7 +155,8 @@ export const getSnapCandidate = (
   rawY: number,
   excludeIds: Set<string>,
   spatialIndex?: SnapSpatialIndex,
-  loopCache?: Map<string, boolean>
+  loopCache?: Map<string, boolean>,
+  heights?: NodeHeightMap
 ): SnapCandidate | null => {
   const draggedNode = getNodeById(nodes, nodeId)
   if (!draggedNode) return null
@@ -167,28 +171,24 @@ export const getSnapCandidate = (
     if (candidate.id === nodeId) continue
     if (excludeIds.has(candidate.id)) continue
 
-    const loopKey = `${candidate.id}->${nodeId}`
-    const loopBlocked = loopCache?.has(loopKey)
-      ? loopCache.get(loopKey) === true
-      : canCreateLoop(nodes, candidate.id, nodeId)
-
-    if (!loopCache?.has(loopKey)) {
-      loopCache?.set(loopKey, loopBlocked)
-    }
-
-    if (loopBlocked) continue
-
     const targetX = candidate.x
-    const targetY = getConnectedChildY(candidate)
-    const dx = rawX - targetX
-    const dy = rawY - targetY
-    const bounds = getConnectionBounds(candidate)
+    const targetY = getConnectedChildY(candidate, heights)
+    const bounds = getConnectionBounds(targetX, targetY)
 
     if (rawX < bounds.left || rawX > bounds.right || rawY < bounds.top || rawY > bounds.bottom) {
       continue
     }
 
-    const distance = Math.hypot(dx, dy)
+    const loopKey = `${candidate.id}->${nodeId}`
+    let loopBlocked = loopCache?.get(loopKey)
+    if (loopBlocked === undefined) {
+      loopBlocked = canCreateLoop(nodes, candidate.id, nodeId)
+      loopCache?.set(loopKey, loopBlocked)
+    }
+
+    if (loopBlocked) continue
+
+    const distance = Math.hypot(rawX - targetX, rawY - targetY)
     if (distance < bestDistance) {
       bestDistance = distance
       bestCandidate = {

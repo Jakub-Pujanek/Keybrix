@@ -8,6 +8,57 @@ const WORLD_HEIGHT = 4000
 const WORLD_CENTER_X = WORLD_WIDTH / 2
 const WORLD_CENTER_Y = WORLD_HEIGHT / 2
 
+type MeasuredBlockProps = {
+  nodeId: string
+  className: string
+  style: React.CSSProperties
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
+  onMeasureHeight: (nodeId: string, height: number) => void
+  children: React.ReactNode
+}
+
+function MeasuredBlock({
+  nodeId,
+  className,
+  style,
+  onPointerDown,
+  onMeasureHeight,
+  children
+}: MeasuredBlockProps): React.JSX.Element {
+  const elementRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const reportHeight = (): void => {
+      // offsetHeight is in layout px, unaffected by the canvas zoom transform.
+      const height = element.offsetHeight
+      if (height > 0) onMeasureHeight(nodeId, height)
+    }
+
+    reportHeight()
+
+    if (typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(reportHeight)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [nodeId, onMeasureHeight])
+
+  return (
+    <div
+      ref={elementRef}
+      data-editor-block="1"
+      className={className}
+      style={style}
+      onPointerDown={onPointerDown}
+    >
+      {children}
+    </div>
+  )
+}
+
 type CanvasGridProps = {
   nodes: EditorNode[]
   zoom: number
@@ -30,6 +81,7 @@ type CanvasGridProps = {
   isMousePickerActive: boolean
   onStartMousePicker: (nodeId: string) => void
   onStopMousePicker: () => void
+  onMeasureNodeHeight: (nodeId: string, height: number) => void
 }
 
 function CanvasGrid({
@@ -53,7 +105,8 @@ function CanvasGrid({
   mousePickerPreview,
   isMousePickerActive,
   onStartMousePicker,
-  onStopMousePicker
+  onStopMousePicker,
+  onMeasureNodeHeight
 }: CanvasGridProps): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [isPanningCanvas, setIsPanningCanvas] = useState(false)
@@ -296,9 +349,9 @@ function CanvasGrid({
           const display = displayPositions[node.id] ?? { x: node.x, y: node.y }
 
           return (
-            <div
+            <MeasuredBlock
               key={node.id}
-              data-editor-block="1"
+              nodeId={node.id}
               className={`absolute cursor-grab active:cursor-grabbing ${draggingNodeIds.has(node.id) ? 'z-9999' : 'z-0'}`}
               style={{
                 transform: `translate(${display.x + WORLD_CENTER_X}px, ${display.y + WORLD_CENTER_Y}px)`
@@ -307,6 +360,7 @@ function CanvasGrid({
                 event.stopPropagation()
                 onBlockPointerDown(node.id, event.clientX, event.clientY)
               }}
+              onMeasureHeight={onMeasureNodeHeight}
             >
               <ActionBlock
                 node={node}
@@ -324,7 +378,7 @@ function CanvasGrid({
                 onStartMousePicker={onStartMousePicker}
                 onStopMousePicker={onStopMousePicker}
               />
-            </div>
+            </MeasuredBlock>
           )
         })}
       </div>

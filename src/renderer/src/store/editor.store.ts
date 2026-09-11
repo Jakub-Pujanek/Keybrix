@@ -20,6 +20,7 @@ type ShortcutRecordingError = {
 
 type EditorState = {
   nodes: EditorNode[]
+  nodeHeights: Record<string, number>
   zoom: number
   activeMacroId: string | null
   macroTitle: string
@@ -38,6 +39,7 @@ type EditorState = {
   setMacroTitle: (nextTitle: string) => void
   addNode: (type: EditorBlockType, position?: { x: number; y: number }) => void
   setNodePosition: (nodeId: string, x: number, y: number) => void
+  setNodeHeight: (nodeId: string, height: number) => void
   setManyNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void
   setNodeNext: (nodeId: string, nextId: string | null) => void
   clearIncomingConnection: (nodeId: string) => void
@@ -247,6 +249,7 @@ const cloneNodes = (nodes: EditorNode[]): EditorNode[] =>
 const buildSafeEditorState = (): Pick<
   EditorState,
   | 'nodes'
+  | 'nodeHeights'
   | 'zoom'
   | 'activeMacroId'
   | 'macroTitle'
@@ -262,6 +265,7 @@ const buildSafeEditorState = (): Pick<
   | 'isMousePickerActive'
 > => ({
   nodes: cloneNodes(defaultNodes),
+  nodeHeights: {},
   zoom: 1,
   activeMacroId: null,
   macroTitle: DEFAULT_EDITOR_TITLE,
@@ -458,6 +462,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       macroTitle: selected.name,
       shortcut: formattedShortcut,
       nodes: loadedNodes,
+      nodeHeights: {},
       zoom: parsedNodes.success ? parsedNodes.data.zoom : 1
     })
   },
@@ -526,6 +531,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }))
   },
 
+  setNodeHeight: (nodeId, height) => {
+    if (get().nodeHeights[nodeId] === height) return
+
+    set((state) => ({ nodeHeights: { ...state.nodeHeights, [nodeId]: height } }))
+  },
+
   setManyNodePositions: (updates) => {
     const updateById = new Map(updates.map((item) => [item.id, item]))
 
@@ -567,13 +578,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   removeNodeTree: (rootId) => {
     set((state) => {
       const chainIds = collectChainIds(state.nodes, rootId)
+      const nodeHeights = { ...state.nodeHeights }
+      for (const id of chainIds) {
+        delete nodeHeights[id]
+      }
 
       return {
         nodes: state.nodes
           .filter((node) => !chainIds.has(node.id))
           .map((node) =>
             node.nextId && chainIds.has(node.nextId) ? { ...node, nextId: null } : node
-          )
+          ),
+        nodeHeights
       }
     })
   },
@@ -587,7 +603,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearNodes: () => {
-    set({ nodes: [] })
+    set({ nodes: [], nodeHeights: {} })
   },
 
   setZoom: (zoom) => {
@@ -670,7 +686,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const reservation = await window.api.keyboard.recordShortcut({
           keys: recordedKeys,
           source: recordingSource,
-          macroId: isMacroShortcutSource ? activeMacroId ?? undefined : undefined
+          macroId: isMacroShortcutSource ? (activeMacroId ?? undefined) : undefined
         })
 
         if (isMacroShortcutSource && !reservation.success) {

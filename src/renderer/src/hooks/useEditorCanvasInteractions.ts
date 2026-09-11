@@ -22,6 +22,7 @@ type DragSession = {
 
 type UseEditorCanvasInteractionsInput = {
   nodes: EditorNode[]
+  nodeHeights: Record<string, number>
   zoom: number
   setManyNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void
   setNodeNext: (nodeId: string, nextId: string | null) => void
@@ -57,6 +58,7 @@ const toObjectPositions = (
 
 export function useEditorCanvasInteractions({
   nodes,
+  nodeHeights,
   zoom,
   setManyNodePositions,
   setNodeNext,
@@ -74,8 +76,9 @@ export function useEditorCanvasInteractions({
 
   const sessionRef = useRef<DragSession | null>(null)
   const nodesRef = useRef(nodes)
+  const nodeHeightsRef = useRef(nodeHeights)
   const zoomRef = useRef(zoom)
-  const spatialIndexRef = useRef<SnapSpatialIndex>(buildSnapSpatialIndex(nodes))
+  const spatialIndexRef = useRef<SnapSpatialIndex>(buildSnapSpatialIndex(nodes, nodeHeights))
   const moveHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const upHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const frameRef = useRef<number | null>(null)
@@ -87,8 +90,9 @@ export function useEditorCanvasInteractions({
 
   useEffect(() => {
     nodesRef.current = nodes
-    spatialIndexRef.current = buildSnapSpatialIndex(nodes)
-  }, [nodes])
+    nodeHeightsRef.current = nodeHeights
+    spatialIndexRef.current = buildSnapSpatialIndex(nodes, nodeHeights)
+  }, [nodes, nodeHeights])
 
   useEffect(() => {
     zoomRef.current = zoom
@@ -146,7 +150,8 @@ export function useEditorCanvasInteractions({
         rawY,
         session.excludeIds,
         spatialIndexRef.current,
-        session.loopCache
+        session.loopCache,
+        nodeHeightsRef.current
       )
 
       applyPreview(candidate ? session.rootId : null, candidate ? candidate.parentId : null)
@@ -213,7 +218,8 @@ export function useEditorCanvasInteractions({
         rawY,
         session.excludeIds,
         spatialIndexRef.current,
-        session.loopCache
+        session.loopCache,
+        nodeHeightsRef.current
       )
 
       if (candidate) {
