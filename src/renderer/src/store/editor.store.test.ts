@@ -16,10 +16,12 @@ let onCoordinateSelectedListener:
 
 const mousePickerStartMock = vi.fn(async () => true)
 const mousePickerStopMock = vi.fn(async () => true)
-const recordShortcutMock = vi.fn(async (): Promise<RecordShortcutResult> => ({
-  success: true,
-  reasonCode: 'OK'
-}))
+const recordShortcutMock = vi.fn(
+  async (): Promise<RecordShortcutResult> => ({
+    success: true,
+    reasonCode: 'OK'
+  })
+)
 const setCaptureActiveMock = vi.fn(async () => true)
 
 const setupApiMock = (): void => {
@@ -198,15 +200,17 @@ describe('editor.store mouse picker', () => {
     })
 
     useEditorStore.getState().startShortcutRecording('topbar')
-    useEditorStore.getState().handleShortcutKeyDown(
-      new KeyboardEvent('keydown', { code: 'ControlLeft' })
-    )
-    useEditorStore.getState().handleShortcutKeyDown(
-      new KeyboardEvent('keydown', { code: 'ShiftLeft' })
-    )
+    useEditorStore
+      .getState()
+      .handleShortcutKeyDown(new KeyboardEvent('keydown', { code: 'ControlLeft' }))
+    useEditorStore
+      .getState()
+      .handleShortcutKeyDown(new KeyboardEvent('keydown', { code: 'ShiftLeft' }))
     useEditorStore.getState().handleShortcutKeyDown(new KeyboardEvent('keydown', { code: 'KeyR' }))
 
-    await useEditorStore.getState().handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'KeyR' }))
+    await useEditorStore
+      .getState()
+      .handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'KeyR' }))
     await useEditorStore
       .getState()
       .handleShortcutKeyUp(new KeyboardEvent('keyup', { code: 'ShiftLeft' }))
@@ -228,5 +232,20 @@ describe('editor.store mouse picker', () => {
     })
     expect(setCaptureActiveMock).toHaveBeenCalledWith(true)
     expect(setCaptureActiveMock).toHaveBeenCalledWith(false)
+  })
+
+  it('stores measured node heights in batch', () => {
+    useEditorStore.getState().setNodeHeights({ a: 120, b: 200 })
+
+    expect(useEditorStore.getState().nodeHeights).toEqual({ a: 120, b: 200 })
+  })
+
+  it('skips the heights update when all measured values are unchanged', () => {
+    useEditorStore.getState().setNodeHeights({ a: 120 })
+    const before = useEditorStore.getState().nodeHeights
+
+    useEditorStore.getState().setNodeHeights({ a: 120 })
+
+    expect(useEditorStore.getState().nodeHeights).toBe(before)
   })
 })

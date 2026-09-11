@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EditorNode } from '../../../shared/api'
 import {
   buildSnapSpatialIndex,
+  canCreateLoop,
   getChainFrom,
   getNodeById,
   getSnapCandidate,
   mapChainPositions,
+  resolveNodePositions,
   type SnapSpatialIndex
 } from '../lib/editor/canvasPhysics'
 
@@ -31,7 +33,7 @@ type UseEditorCanvasInteractionsInput = {
   isDeleteZoneHit: (clientX: number, clientY: number) => boolean
 }
 
-type UseEditorCanvasInteractionsOutput = {
+export type UseEditorCanvasInteractionsOutput = {
   snapPreviewParentId: string | null
   snapPreviewChildId: string | null
   displayPositions: Record<string, { x: number; y: number }>
@@ -78,7 +80,7 @@ export function useEditorCanvasInteractions({
   const nodesRef = useRef(nodes)
   const nodeHeightsRef = useRef(nodeHeights)
   const zoomRef = useRef(zoom)
-  const spatialIndexRef = useRef<SnapSpatialIndex>(buildSnapSpatialIndex(nodes, nodeHeights))
+  const spatialIndexRef = useRef<SnapSpatialIndex | null>(null)
   const moveHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const upHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const frameRef = useRef<number | null>(null)
@@ -143,16 +145,16 @@ export function useEditorCanvasInteractions({
       const rawX = rootInitial.x + dx
       const rawY = rootInitial.y + dy
 
-      const candidate = getSnapCandidate(
-        nodesRef.current,
-        session.rootId,
+      const candidate = getSnapCandidate({
+        nodes: nodesRef.current,
+        nodeId: session.rootId,
         rawX,
         rawY,
-        session.excludeIds,
-        spatialIndexRef.current,
-        session.loopCache,
-        nodeHeightsRef.current
-      )
+        excludeIds: session.excludeIds,
+        spatialIndex: spatialIndexRef.current ?? undefined,
+        loopCache: session.loopCache,
+        heights: nodeHeightsRef.current
+      })
 
       applyPreview(candidate ? session.rootId : null, candidate ? candidate.parentId : null)
 
@@ -211,16 +213,16 @@ export function useEditorCanvasInteractions({
       const rawX = rootInitial.x + dx
       const rawY = rootInitial.y + dy
 
-      const candidate = getSnapCandidate(
-        nodesRef.current,
-        session.rootId,
+      const candidate = getSnapCandidate({
+        nodes: nodesRef.current,
+        nodeId: session.rootId,
         rawX,
         rawY,
-        session.excludeIds,
-        spatialIndexRef.current,
-        session.loopCache,
-        nodeHeightsRef.current
-      )
+        excludeIds: session.excludeIds,
+        spatialIndex: spatialIndexRef.current ?? undefined,
+        loopCache: session.loopCache,
+        heights: nodeHeightsRef.current
+      })
 
       if (candidate) {
         const adjustX = candidate.snapX - rawX
@@ -239,8 +241,22 @@ export function useEditorCanvasInteractions({
           setManyNodePositions(updates)
         }
 
+        const displacedId = getNodeById(nodesRef.current, candidate.parentId)?.nextId ?? null
+        const tailId = session.chainIds[session.chainIds.length - 1]
+
         clearIncomingConnection(session.rootId)
         setNodeNext(candidate.parentId, session.rootId)
+
+        // Scratch-style splice: the slot's previous child subtree is re-attached
+        // under the tail of the inserted chain instead of being orphaned.
+        if (
+          displacedId &&
+          tailId &&
+          !session.excludeIds.has(displacedId) &&
+          !canCreateLoop(nodesRef.current, tailId, displacedId)
+        ) {
+          setNodeNext(tailId, displacedId)
+        }
       } else {
         const updates = mapChainPositions(session.chainIds, session.initialPositions, dx, dy)
 
@@ -305,16 +321,16 @@ export function useEditorCanvasInteractions({
     clearDragPreviewState()
 
     const chainIds = getChainFrom(nodesRef.current, nodeId)
+    const positions =
+      spatialIndexRef.current?.positions ??
+      resolveNodePositions(nodesRef.current, nodeHeightsRef.current)
     const initialPositions = new Map<string, { x: number; y: number }>()
 
     for (const id of chainIds) {
-      const node = getNodeById(nodesRef.current, id)
-      if (!node) continue
+      const position = positions.get(id)
+      if (!position) continue
 
-      initialPositions.set(id, {
-        x: node.x,
-        y: node.y
-      })
+      initialPositions.set(id, position)
     }
 
     sessionRef.current = {

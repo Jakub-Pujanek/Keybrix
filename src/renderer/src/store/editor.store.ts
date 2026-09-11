@@ -39,7 +39,7 @@ type EditorState = {
   setMacroTitle: (nextTitle: string) => void
   addNode: (type: EditorBlockType, position?: { x: number; y: number }) => void
   setNodePosition: (nodeId: string, x: number, y: number) => void
-  setNodeHeight: (nodeId: string, height: number) => void
+  setNodeHeights: (updates: Record<string, number>) => void
   setManyNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void
   setNodeNext: (nodeId: string, nextId: string | null) => void
   clearIncomingConnection: (nodeId: string) => void
@@ -531,10 +531,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }))
   },
 
-  setNodeHeight: (nodeId, height) => {
-    if (get().nodeHeights[nodeId] === height) return
+  setNodeHeights: (updates) => {
+    const current = get().nodeHeights
+    if (Object.entries(updates).every(([id, height]) => current[id] === height)) return
 
-    set((state) => ({ nodeHeights: { ...state.nodeHeights, [nodeId]: height } }))
+    set((state) => ({ nodeHeights: { ...state.nodeHeights, ...updates } }))
   },
 
   setManyNodePositions: (updates) => {

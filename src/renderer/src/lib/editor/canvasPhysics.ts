@@ -29,6 +29,8 @@ export type SnapCandidate = {
 
 export type NodeHeightMap = Readonly<Record<string, number>>
 
+export type ResolvedPositions = ReadonlyMap<string, { x: number; y: number }>
+
 type ConnectionBounds = {
   left: number
   right: number
@@ -39,6 +41,7 @@ type ConnectionBounds = {
 export type SnapSpatialIndex = {
   cellSize: number
   buckets: Map<string, EditorNode[]>
+  positions: Map<string, { x: number; y: number }>
 }
 
 // BODY_HEIGHT_BY_TYPE is only a pre-measurement fallback: the rendered block
@@ -48,8 +51,56 @@ export const getBlockTotalHeight = (node: EditorNode, heights?: NodeHeightMap): 
   return (heights?.[node.id] ?? BODY_HEIGHT_BY_TYPE[node.type]) + BOTTOM_TAB_HEIGHT
 }
 
-export const getConnectedChildY = (parentNode: EditorNode, heights?: NodeHeightMap): number => {
-  return parentNode.y + getBlockTotalHeight(parentNode, heights) - TOP_NOTCH_DEPTH
+export const getConnectedChildY = (
+  parentNode: EditorNode,
+  heights?: NodeHeightMap,
+  positions?: ResolvedPositions
+): number => {
+  const baseY = positions?.get(parentNode.id)?.y ?? parentNode.y
+  return baseY + getBlockTotalHeight(parentNode, heights) - TOP_NOTCH_DEPTH
+}
+
+// Connected children derive their position from the parent chain — the stored
+// x/y is only authoritative for chain roots (nodes without an incoming link).
+export const resolveNodePositions = (
+  nodes: EditorNode[],
+  heights?: NodeHeightMap
+): Map<string, { x: number; y: number }> => {
+  const parentById = new Map<string, EditorNode>()
+  for (const node of nodes) {
+    if (node.nextId && !parentById.has(node.nextId)) {
+      parentById.set(node.nextId, node)
+    }
+  }
+
+  const positions = new Map<string, { x: number; y: number }>()
+  const visiting = new Set<string>()
+
+  const resolve = (node: EditorNode): { x: number; y: number } => {
+    const cached = positions.get(node.id)
+    if (cached) return cached
+
+    const parent = parentById.get(node.id)
+    let position = { x: node.x, y: node.y }
+    if (parent && !visiting.has(node.id)) {
+      visiting.add(node.id)
+      const parentPosition = resolve(parent)
+      position = {
+        x: parentPosition.x,
+        y: parentPosition.y + getBlockTotalHeight(parent, heights) - TOP_NOTCH_DEPTH
+      }
+      visiting.delete(node.id)
+    }
+
+    positions.set(node.id, position)
+    return position
+  }
+
+  for (const node of nodes) {
+    resolve(node)
+  }
+
+  return positions
 }
 
 const getConnectionBounds = (targetX: number, targetY: number): ConnectionBounds => {
@@ -71,9 +122,11 @@ export const buildSnapSpatialIndex = (
   cellSize = SNAP_INDEX_CELL_SIZE
 ): SnapSpatialIndex => {
   const buckets = new Map<string, EditorNode[]>()
+  const positions = resolveNodePositions(nodes, heights)
 
   for (const node of nodes) {
-    const key = getCellKey(node.x, getConnectedChildY(node, heights), cellSize)
+    const position = positions.get(node.id) ?? { x: node.x, y: node.y }
+    const key = getCellKey(position.x, getConnectedChildY(node, heights, positions), cellSize)
     const bucket = buckets.get(key)
     if (!bucket) {
       buckets.set(key, [node])
@@ -85,7 +138,8 @@ export const buildSnapSpatialIndex = (
 
   return {
     cellSize,
-    buckets
+    buckets,
+    positions
   }
 }
 
@@ -148,21 +202,33 @@ export const canCreateLoop = (nodes: EditorNode[], parentId: string, childId: st
   return false
 }
 
-export const getSnapCandidate = (
-  nodes: EditorNode[],
-  nodeId: string,
-  rawX: number,
-  rawY: number,
-  excludeIds: Set<string>,
-  spatialIndex?: SnapSpatialIndex,
-  loopCache?: Map<string, boolean>,
+export type SnapCandidateQuery = {
+  nodes: EditorNode[]
+  nodeId: string
+  rawX: number
+  rawY: number
+  excludeIds: Set<string>
+  spatialIndex?: SnapSpatialIndex
+  loopCache?: Map<string, boolean>
   heights?: NodeHeightMap
-): SnapCandidate | null => {
+}
+
+export const getSnapCandidate = ({
+  nodes,
+  nodeId,
+  rawX,
+  rawY,
+  excludeIds,
+  spatialIndex,
+  loopCache,
+  heights
+}: SnapCandidateQuery): SnapCandidate | null => {
   const draggedNode = getNodeById(nodes, nodeId)
   if (!draggedNode) return null
   if (draggedNode.type === 'START') return null
 
   const candidates = spatialIndex ? getSpatialCandidates(spatialIndex, rawX, rawY) : nodes
+  const positions = spatialIndex?.positions ?? resolveNodePositions(nodes, heights)
 
   let bestCandidate: SnapCandidate | null = null
   let bestDistance = Number.POSITIVE_INFINITY
@@ -171,8 +237,8 @@ export const getSnapCandidate = (
     if (candidate.id === nodeId) continue
     if (excludeIds.has(candidate.id)) continue
 
-    const targetX = candidate.x
-    const targetY = getConnectedChildY(candidate, heights)
+    const targetX = positions.get(candidate.id)?.x ?? candidate.x
+    const targetY = getConnectedChildY(candidate, heights, positions)
     const bounds = getConnectionBounds(targetX, targetY)
 
     if (rawX < bounds.left || rawX > bounds.right || rawY < bounds.top || rawY > bounds.bottom) {

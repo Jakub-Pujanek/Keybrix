@@ -8,7 +8,8 @@ import {
   getNodeById,
   getSnapCandidate,
   getBlockTotalHeight,
-  mapChainPositions
+  mapChainPositions,
+  resolveNodePositions
 } from './canvasPhysics'
 
 const buildNode = (
@@ -69,6 +70,70 @@ describe('getConnectedChildY', () => {
 
     expect(getConnectedChildY(node, { n: 250 })).toBe(100 + 250 + 12 - 11)
   })
+
+  it('uses the resolved position when provided', () => {
+    const node = buildNode('n', 'WAIT', 999, 999)
+    const positions = new Map([['n', { x: 50, y: 100 }]])
+
+    expect(getConnectedChildY(node, undefined, positions)).toBe(100 + 102 + 12 - 11)
+  })
+})
+
+describe('resolveNodePositions', () => {
+  it('keeps stored positions for unlinked nodes', () => {
+    const a = buildNode('a', 'WAIT', 10, 20)
+    const b = buildNode('b', 'WAIT', 30, 40)
+
+    const positions = resolveNodePositions([a, b])
+
+    expect(positions.get('a')).toEqual({ x: 10, y: 20 })
+    expect(positions.get('b')).toEqual({ x: 30, y: 40 })
+  })
+
+  it('derives a connected child position from the parent', () => {
+    const parent = buildNode('p', 'WAIT', 50, 100, 'c')
+    const child = buildNode('c', 'MOUSE_CLICK', 999, 999)
+
+    const positions = resolveNodePositions([parent, child])
+
+    expect(positions.get('c')).toEqual({ x: 50, y: 100 + 102 + 12 - 11 })
+  })
+
+  it('stacks a multi-level chain recursively', () => {
+    const a = buildNode('a', 'WAIT', 0, 0, 'b')
+    const b = buildNode('b', 'WAIT', 5, 5, 'c')
+    const c = buildNode('c', 'WAIT', 9, 9)
+
+    const positions = resolveNodePositions([a, b, c])
+
+    expect(positions.get('b')).toEqual({ x: 0, y: 0 + 102 + 12 - 11 })
+    expect(positions.get('c')).toEqual({ x: 0, y: 2 * (102 + 12 - 11) })
+  })
+
+  it('applies measured heights when deriving chain positions', () => {
+    const parent = buildNode('p', 'WAIT', 0, 0, 'c')
+    const child = buildNode('c', 'WAIT', 0, 0)
+
+    const positions = resolveNodePositions([parent, child], { p: 300 })
+
+    expect(positions.get('c')).toEqual({ x: 0, y: 300 + 12 - 11 })
+  })
+
+  it('terminates on cyclic links and resolves every node', () => {
+    const a = buildNode('a', 'WAIT', 10, 20, 'b')
+    const b = buildNode('b', 'WAIT', 30, 40, 'a')
+
+    const positions = resolveNodePositions([a, b])
+
+    expect(positions.get('a')).toBeDefined()
+    expect(positions.get('b')).toBeDefined()
+  })
+
+  it('treats a node as root when its stored nextId target is missing', () => {
+    const a = buildNode('a', 'WAIT', 10, 20, 'ghost')
+
+    expect(resolveNodePositions([a]).get('a')).toEqual({ x: 10, y: 20 })
+  })
 })
 
 describe('getSnapCandidate', () => {
@@ -77,14 +142,14 @@ describe('getSnapCandidate', () => {
     const freeBlock = buildNode('free', 'WAIT', 0, 0)
     const nodes: EditorNode[] = [mouseAction, freeBlock]
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      freeBlock.id,
-      mouseAction.x,
-      getConnectedChildY(mouseAction),
-      new Set(),
-      buildSnapSpatialIndex(nodes)
-    )
+      nodeId: freeBlock.id,
+      rawX: mouseAction.x,
+      rawY: getConnectedChildY(mouseAction),
+      excludeIds: new Set(),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
 
     expect(candidate).not.toBeNull()
     expect(candidate?.parentId).toBe(mouseAction.id)
@@ -95,14 +160,14 @@ describe('getSnapCandidate', () => {
     const mouseAction = buildNode('mouse', 'MOUSE_CLICK', 0, 0)
     const nodes: EditorNode[] = [parent, mouseAction]
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      mouseAction.id,
-      parent.x,
-      getConnectedChildY(parent),
-      new Set(),
-      buildSnapSpatialIndex(nodes)
-    )
+      nodeId: mouseAction.id,
+      rawX: parent.x,
+      rawY: getConnectedChildY(parent),
+      excludeIds: new Set(),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
 
     expect(candidate).not.toBeNull()
     expect(candidate?.parentId).toBe(parent.id)
@@ -113,13 +178,13 @@ describe('getSnapCandidate', () => {
     const dragged = buildNode('dragged', 'WAIT', 400, 400)
     const nodes: EditorNode[] = [parent, dragged]
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      dragged.id,
-      parent.x,
-      getConnectedChildY(parent),
-      new Set()
-    )
+      nodeId: dragged.id,
+      rawX: parent.x,
+      rawY: getConnectedChildY(parent),
+      excludeIds: new Set()
+    })
 
     expect(candidate?.parentId).toBe(parent.id)
   })
@@ -131,16 +196,15 @@ describe('getSnapCandidate', () => {
     const heights = { parent: 300 }
     const expectedY = getConnectedChildY(parent, heights)
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      dragged.id,
-      parent.x,
-      expectedY,
-      new Set(),
-      buildSnapSpatialIndex(nodes, heights),
-      undefined,
+      nodeId: dragged.id,
+      rawX: parent.x,
+      rawY: expectedY,
+      excludeIds: new Set(),
+      spatialIndex: buildSnapSpatialIndex(nodes, heights),
       heights
-    )
+    })
 
     expect(candidate?.parentId).toBe(parent.id)
     expect(candidate?.snapY).toBe(300 + 12 - 11)
@@ -152,18 +216,56 @@ describe('getSnapCandidate', () => {
     const nodes: EditorNode[] = [parent, dragged]
     const heights = { parent: 300 }
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      dragged.id,
-      parent.x,
-      getConnectedChildY(parent),
-      new Set(),
-      buildSnapSpatialIndex(nodes, heights),
-      undefined,
+      nodeId: dragged.id,
+      rawX: parent.x,
+      rawY: getConnectedChildY(parent),
+      excludeIds: new Set(),
+      spatialIndex: buildSnapSpatialIndex(nodes, heights),
       heights
-    )
+    })
 
     expect(candidate).toBeNull()
+  })
+
+  it('targets the resolved position of a linked candidate, not its stale stored y', () => {
+    const anchor = buildNode('anchor', 'WAIT', 0, 0, 'mid')
+    const mid = buildNode('mid', 'WAIT', 500, 900)
+    const dragged = buildNode('dragged', 'WAIT', 400, 400)
+    const nodes: EditorNode[] = [anchor, mid, dragged]
+    const positions = resolveNodePositions(nodes)
+    const midSnapY = getConnectedChildY(mid, undefined, positions)
+
+    const candidate = getSnapCandidate({
+      nodes,
+      nodeId: dragged.id,
+      rawX: 0,
+      rawY: midSnapY,
+      excludeIds: new Set([dragged.id]),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
+
+    expect(candidate?.parentId).toBe(mid.id)
+    expect(candidate?.snapY).toBe(midSnapY)
+  })
+
+  it('keeps an occupied parent as a valid candidate (splice happens on drop)', () => {
+    const parent = buildNode('parent', 'WAIT', 0, 0, 'existing')
+    const existing = buildNode('existing', 'WAIT', 0, 103)
+    const dragged = buildNode('dragged', 'WAIT', 400, 400)
+    const nodes: EditorNode[] = [parent, existing, dragged]
+
+    const candidate = getSnapCandidate({
+      nodes,
+      nodeId: dragged.id,
+      rawX: parent.x,
+      rawY: getConnectedChildY(parent),
+      excludeIds: new Set([dragged.id]),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
+
+    expect(candidate?.parentId).toBe(parent.id)
   })
 
   it('prevents START from snapping under any block', () => {
@@ -171,14 +273,14 @@ describe('getSnapCandidate', () => {
     const start = buildNode('start', 'START', 0, 0)
     const nodes: EditorNode[] = [parent, start]
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      start.id,
-      parent.x,
-      getConnectedChildY(parent),
-      new Set(),
-      buildSnapSpatialIndex(nodes)
-    )
+      nodeId: start.id,
+      rawX: parent.x,
+      rawY: getConnectedChildY(parent),
+      excludeIds: new Set(),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
 
     expect(candidate).toBeNull()
   })
@@ -188,15 +290,16 @@ describe('getSnapCandidate', () => {
     const b = buildNode('b', 'WAIT', 0, 0, 'c')
     const c = buildNode('c', 'WAIT', 0, 0)
     const nodes: EditorNode[] = [a, b, c]
+    const positions = resolveNodePositions(nodes)
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      a.id,
-      c.x,
-      getConnectedChildY(c),
-      new Set(),
-      buildSnapSpatialIndex(nodes)
-    )
+      nodeId: a.id,
+      rawX: 0,
+      rawY: getConnectedChildY(c, undefined, positions),
+      excludeIds: new Set([a.id]),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
 
     expect(candidate).toBeNull()
   })
@@ -206,17 +309,18 @@ describe('getSnapCandidate', () => {
     const b = buildNode('b', 'WAIT', 0, 0, 'c')
     const c = buildNode('c', 'WAIT', 0, 0)
     const nodes: EditorNode[] = [a, b, c]
+    const positions = resolveNodePositions(nodes)
     const loopCache = new Map<string, boolean>([['c->a', false]])
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      a.id,
-      c.x,
-      getConnectedChildY(c),
-      new Set(),
-      buildSnapSpatialIndex(nodes),
+      nodeId: a.id,
+      rawX: 0,
+      rawY: getConnectedChildY(c, undefined, positions),
+      excludeIds: new Set([a.id]),
+      spatialIndex: buildSnapSpatialIndex(nodes),
       loopCache
-    )
+    })
 
     expect(candidate?.parentId).toBe(c.id)
   })
@@ -226,14 +330,14 @@ describe('getSnapCandidate', () => {
     const child = buildNode('child', 'WAIT', 0, 0)
     const nodes: EditorNode[] = [parent, child]
 
-    const candidate = getSnapCandidate(
+    const candidate = getSnapCandidate({
       nodes,
-      parent.id,
-      child.x,
-      getConnectedChildY(child),
-      new Set([parent.id, child.id]),
-      buildSnapSpatialIndex(nodes)
-    )
+      nodeId: parent.id,
+      rawX: child.x,
+      rawY: getConnectedChildY(child),
+      excludeIds: new Set([parent.id, child.id]),
+      spatialIndex: buildSnapSpatialIndex(nodes)
+    })
 
     expect(candidate).toBeNull()
   })
@@ -324,6 +428,15 @@ describe('buildSnapSpatialIndex', () => {
 
     expect(index.buckets.get('0:2')).toEqual([node])
     expect(index.buckets.has('0:0')).toBe(false)
+  })
+
+  it('exposes resolved positions for reuse by snap queries', () => {
+    const parent = buildNode('p', 'WAIT', 0, 0, 'c')
+    const child = buildNode('c', 'WAIT', 500, 900)
+
+    const index = buildSnapSpatialIndex([parent, child])
+
+    expect(index.positions.get('c')).toEqual({ x: 0, y: 102 + 12 - 11 })
   })
 })
 

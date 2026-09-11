@@ -282,7 +282,7 @@ function EditorScreen(): React.JSX.Element {
   const setMacroTitle = useEditorStore((state) => state.setMacroTitle)
   const addNode = useEditorStore((state) => state.addNode)
   const setManyNodePositions = useEditorStore((state) => state.setManyNodePositions)
-  const setNodeHeight = useEditorStore((state) => state.setNodeHeight)
+  const setNodeHeights = useEditorStore((state) => state.setNodeHeights)
   const setNodeNext = useEditorStore((state) => state.setNodeNext)
   const clearIncomingConnection = useEditorStore((state) => state.clearIncomingConnection)
   const removeNodeTree = useEditorStore((state) => state.removeNodeTree)
@@ -490,6 +490,7 @@ function EditorScreen(): React.JSX.Element {
         <div className={`relative min-h-0 min-w-0 flex-1 ${isDraggingBlocks ? 'z-999' : 'z-0'}`}>
           <CanvasGrid
             nodes={nodes}
+            nodeHeights={nodeHeights}
             zoom={zoom}
             canvasRef={canvasRef}
             onZoomChange={setZoom}
@@ -528,7 +529,7 @@ function EditorScreen(): React.JSX.Element {
             onStopMousePicker={() => {
               void stopMousePicker()
             }}
-            onMeasureNodeHeight={setNodeHeight}
+            onMeasureNodeHeights={setNodeHeights}
           />
 
           <CanvasControls

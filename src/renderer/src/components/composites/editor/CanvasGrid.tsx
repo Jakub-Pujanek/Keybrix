@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { EditorBlockType, EditorNode } from '../../../../../shared/api'
 import { isRegisteredEditorBlockType } from '../../../../../shared/block-registry'
+import { resolveNodePositions } from '../../../lib/editor/canvasPhysics'
 import ActionBlock from './ActionBlock'
 
 const WORLD_WIDTH = 6000
@@ -13,7 +14,8 @@ type MeasuredBlockProps = {
   className: string
   style: React.CSSProperties
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
-  onMeasureHeight: (nodeId: string, height: number) => void
+  getObserver: () => ResizeObserver | null
+  onMeasureHeights: (updates: Record<string, number>) => void
   children: React.ReactNode
 }
 
@@ -22,34 +24,32 @@ function MeasuredBlock({
   className,
   style,
   onPointerDown,
-  onMeasureHeight,
+  getObserver,
+  onMeasureHeights,
   children
 }: MeasuredBlockProps): React.JSX.Element {
   const elementRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = elementRef.current
     if (!element) return
 
-    const reportHeight = (): void => {
-      // offsetHeight is in layout px, unaffected by the canvas zoom transform.
-      const height = element.offsetHeight
-      if (height > 0) onMeasureHeight(nodeId, height)
-    }
+    // offsetHeight is in layout px, unaffected by the canvas zoom transform.
+    const height = element.offsetHeight
+    if (height > 0) onMeasureHeights({ [nodeId]: height })
 
-    reportHeight()
+    const observer = getObserver()
+    if (!observer) return
 
-    if (typeof ResizeObserver === 'undefined') return
-
-    const observer = new ResizeObserver(reportHeight)
     observer.observe(element)
-    return () => observer.disconnect()
-  }, [nodeId, onMeasureHeight])
+    return () => observer.unobserve(element)
+  }, [nodeId, getObserver, onMeasureHeights])
 
   return (
     <div
       ref={elementRef}
       data-editor-block="1"
+      data-node-id={nodeId}
       className={className}
       style={style}
       onPointerDown={onPointerDown}
@@ -61,6 +61,7 @@ function MeasuredBlock({
 
 type CanvasGridProps = {
   nodes: EditorNode[]
+  nodeHeights: Record<string, number>
   zoom: number
   canvasRef: React.RefObject<HTMLDivElement | null>
   onZoomChange: (nextZoom: number) => void
@@ -81,11 +82,12 @@ type CanvasGridProps = {
   isMousePickerActive: boolean
   onStartMousePicker: (nodeId: string) => void
   onStopMousePicker: () => void
-  onMeasureNodeHeight: (nodeId: string, height: number) => void
+  onMeasureNodeHeights: (updates: Record<string, number>) => void
 }
 
 function CanvasGrid({
   nodes,
+  nodeHeights,
   zoom,
   canvasRef,
   onZoomChange,
@@ -106,7 +108,7 @@ function CanvasGrid({
   isMousePickerActive,
   onStartMousePicker,
   onStopMousePicker,
-  onMeasureNodeHeight
+  onMeasureNodeHeights
 }: CanvasGridProps): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [isPanningCanvas, setIsPanningCanvas] = useState(false)
@@ -117,6 +119,43 @@ function CanvasGrid({
   const panStartRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(
     null
   )
+  const measureCallbackRef = useRef(onMeasureNodeHeights)
+  const blockObserverRef = useRef<ResizeObserver | null>(null)
+
+  const resolvedPositions = useMemo(
+    () => resolveNodePositions(nodes, nodeHeights),
+    [nodes, nodeHeights]
+  )
+
+  useEffect(() => {
+    measureCallbackRef.current = onMeasureNodeHeights
+  }, [onMeasureNodeHeights])
+
+  useEffect(() => () => blockObserverRef.current?.disconnect(), [])
+
+  const getBlockObserver = useCallback((): ResizeObserver | null => {
+    if (typeof ResizeObserver === 'undefined') return null
+
+    if (!blockObserverRef.current) {
+      blockObserverRef.current = new ResizeObserver((entries) => {
+        const updates: Record<string, number> = {}
+        for (const entry of entries) {
+          const element = entry.target as HTMLElement
+          const nodeId = element.dataset['nodeId']
+          if (!nodeId) continue
+
+          const height = element.offsetHeight
+          if (height > 0) updates[nodeId] = height
+        }
+
+        if (Object.keys(updates).length > 0) {
+          measureCallbackRef.current(updates)
+        }
+      })
+    }
+
+    return blockObserverRef.current
+  }, [])
 
   const handleUpdatePayload = useCallback(
     (nodeId: string, nextPayload: Record<string, unknown>) => {
@@ -346,7 +385,8 @@ function CanvasGrid({
         }}
       >
         {nodes.map((node) => {
-          const display = displayPositions[node.id] ?? { x: node.x, y: node.y }
+          const display = displayPositions[node.id] ??
+            resolvedPositions.get(node.id) ?? { x: node.x, y: node.y }
 
           return (
             <MeasuredBlock
@@ -360,7 +400,8 @@ function CanvasGrid({
                 event.stopPropagation()
                 onBlockPointerDown(node.id, event.clientX, event.clientY)
               }}
-              onMeasureHeight={onMeasureNodeHeight}
+              getObserver={getBlockObserver}
+              onMeasureHeights={onMeasureNodeHeights}
             >
               <ActionBlock
                 node={node}
