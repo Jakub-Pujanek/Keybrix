@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EditorNode } from '../../../shared/api'
+import { clampNodeToWorld, getEdgePanDelta } from '../lib/editor/canvasCamera'
 import {
   buildSnapSpatialIndex,
   canCreateLoop,
+  getBlockTotalHeight,
   getChainFrom,
   getNodeById,
   getSnapCandidate,
@@ -19,6 +21,13 @@ type DragSession = {
   initialPositions: Map<string, { x: number; y: number }>
   pointerStartX: number
   pointerStartY: number
+  lastClientX: number
+  lastClientY: number
+  // World-space shift accumulated from edge-panning mid-drag — added to the
+  // pointer delta so the dragged chain stays glued to the cursor while the
+  // camera scrolls the world underneath it.
+  panOffsetX: number
+  panOffsetY: number
   moved: boolean
 }
 
@@ -26,6 +35,8 @@ type UseEditorCanvasInteractionsInput = {
   nodes: EditorNode[]
   nodeHeights: Record<string, number>
   zoom: number
+  canvasRef: React.RefObject<HTMLDivElement | null>
+  panCameraBy: (dx: number, dy: number) => { x: number; y: number }
   setManyNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void
   setNodeNext: (nodeId: string, nextId: string | null) => void
   clearIncomingConnection: (nodeId: string) => void
@@ -62,6 +73,8 @@ export function useEditorCanvasInteractions({
   nodes,
   nodeHeights,
   zoom,
+  canvasRef,
+  panCameraBy,
   setManyNodePositions,
   setNodeNext,
   clearIncomingConnection,
@@ -83,6 +96,7 @@ export function useEditorCanvasInteractions({
   const spatialIndexRef = useRef<SnapSpatialIndex | null>(null)
   const moveHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
   const upHandlerRef = useRef<(event: PointerEvent) => void>(() => undefined)
+  const panCameraByRef = useRef(panCameraBy)
   const frameRef = useRef<number | null>(null)
   const pendingDisplayPositionsRef = useRef<Record<string, { x: number; y: number }>>({})
   const previewRef = useRef<{ childId: string | null; parentId: string | null }>({
@@ -98,7 +112,8 @@ export function useEditorCanvasInteractions({
 
   useEffect(() => {
     zoomRef.current = zoom
-  }, [zoom])
+    panCameraByRef.current = panCameraBy
+  }, [zoom, panCameraBy])
 
   const clearPreview = useCallback((): void => {
     previewRef.current = { childId: null, parentId: null }
@@ -125,20 +140,11 @@ export function useEditorCanvasInteractions({
     setDisplayPositions({})
   }, [])
 
-  const handlePointerMove = useCallback(
-    (event: PointerEvent): void => {
-      const session = sessionRef.current
-      if (!session) return
-
-      event.preventDefault()
-
-      const dx = (event.clientX - session.pointerStartX) / zoomRef.current
-      const dy = (event.clientY - session.pointerStartY) / zoomRef.current
-
-      if (!session.moved && Math.hypot(dx, dy) > 2) {
-        session.moved = true
-      }
-
+  // Shared by pointermove and the edge-pan ticker: recomputes the dragged
+  // chain's raw position, snap preview and pending display positions for a
+  // world-space pointer delta.
+  const updateDragPositions = useCallback(
+    (session: DragSession, dx: number, dy: number): void => {
       const rootInitial = session.initialPositions.get(session.rootId)
       if (!rootInitial) return
 
@@ -153,7 +159,8 @@ export function useEditorCanvasInteractions({
         excludeIds: session.excludeIds,
         spatialIndex: spatialIndexRef.current ?? undefined,
         loopCache: session.loopCache,
-        heights: nodeHeightsRef.current
+        heights: nodeHeightsRef.current,
+        zoom: zoomRef.current
       })
 
       applyPreview(candidate ? session.rootId : null, candidate ? candidate.parentId : null)
@@ -172,6 +179,27 @@ export function useEditorCanvasInteractions({
       })
     },
     [applyPreview]
+  )
+
+  const handlePointerMove = useCallback(
+    (event: PointerEvent): void => {
+      const session = sessionRef.current
+      if (!session) return
+
+      event.preventDefault()
+      session.lastClientX = event.clientX
+      session.lastClientY = event.clientY
+
+      const dx = (event.clientX - session.pointerStartX) / zoomRef.current + session.panOffsetX
+      const dy = (event.clientY - session.pointerStartY) / zoomRef.current + session.panOffsetY
+
+      if (!session.moved && Math.hypot(dx, dy) > 2) {
+        session.moved = true
+      }
+
+      updateDragPositions(session, dx, dy)
+    },
+    [updateDragPositions]
   )
 
   const finalizeDrag = useCallback(
@@ -198,8 +226,8 @@ export function useEditorCanvasInteractions({
         return
       }
 
-      const dx = (clientX - session.pointerStartX) / zoomRef.current
-      const dy = (clientY - session.pointerStartY) / zoomRef.current
+      const dx = (clientX - session.pointerStartX) / zoomRef.current + session.panOffsetX
+      const dy = (clientY - session.pointerStartY) / zoomRef.current + session.panOffsetY
 
       const rootInitial = session.initialPositions.get(session.rootId)
       if (!rootInitial) {
@@ -221,8 +249,27 @@ export function useEditorCanvasInteractions({
         excludeIds: session.excludeIds,
         spatialIndex: spatialIndexRef.current ?? undefined,
         loopCache: session.loopCache,
-        heights: nodeHeightsRef.current
+        heights: nodeHeightsRef.current,
+        zoom: zoomRef.current
       })
+
+      // A block dropped beyond the world bounds would render off-canvas and be
+      // unreachable — the camera can never pan there — so clamp every chain
+      // position into the world rect.
+      const clampUpdates = (
+        updates: Array<{ id: string; x: number; y: number }>
+      ): Array<{ id: string; x: number; y: number }> =>
+        updates.map((update) => {
+          const node = getNodeById(nodesRef.current, update.id)
+          if (!node) return update
+
+          const clamped = clampNodeToWorld(
+            update.x,
+            update.y,
+            getBlockTotalHeight(node, nodeHeightsRef.current)
+          )
+          return { id: update.id, x: clamped.x, y: clamped.y }
+        })
 
       if (candidate) {
         const adjustX = candidate.snapX - rawX
@@ -238,7 +285,7 @@ export function useEditorCanvasInteractions({
         )
 
         if (updates.length > 0) {
-          setManyNodePositions(updates)
+          setManyNodePositions(clampUpdates(updates))
         }
 
         const displacedId = getNodeById(nodesRef.current, candidate.parentId)?.nextId ?? null
@@ -261,7 +308,7 @@ export function useEditorCanvasInteractions({
         const updates = mapChainPositions(session.chainIds, session.initialPositions, dx, dy)
 
         if (updates.length > 0) {
-          setManyNodePositions(updates)
+          setManyNodePositions(clampUpdates(updates))
         }
 
         clearIncomingConnection(session.rootId)
@@ -294,6 +341,39 @@ export function useEditorCanvasInteractions({
     moveHandlerRef.current = handlePointerMove
     upHandlerRef.current = handlePointerUp
   }, [handlePointerMove, handlePointerUp])
+
+  // Edge-pan: while dragging, a pointer held near the viewport edge scrolls
+  // the camera on a ~60fps interval. The real applied camera delta is
+  // accumulated into session.panOffset so the chain stays glued to the
+  // (stationary) pointer. setInterval instead of rAF keeps it test-friendly.
+  useEffect(() => {
+    if (!isDraggingBlocks) return
+
+    const interval = window.setInterval(() => {
+      const session = sessionRef.current
+      const viewport = canvasRef.current
+      if (!session || !viewport) return
+
+      const delta = getEdgePanDelta(
+        session.lastClientX,
+        session.lastClientY,
+        viewport.getBoundingClientRect()
+      )
+      if (delta.x === 0 && delta.y === 0) return
+
+      const applied = panCameraByRef.current(delta.x, delta.y)
+      session.panOffsetX += applied.x / zoomRef.current
+      session.panOffsetY += applied.y / zoomRef.current
+
+      const dx =
+        (session.lastClientX - session.pointerStartX) / zoomRef.current + session.panOffsetX
+      const dy =
+        (session.lastClientY - session.pointerStartY) / zoomRef.current + session.panOffsetY
+      updateDragPositions(session, dx, dy)
+    }, 16)
+
+    return () => window.clearInterval(interval)
+  }, [isDraggingBlocks, canvasRef, updateDragPositions])
 
   useEffect(() => {
     if (!isDraggingBlocks) return
@@ -341,6 +421,10 @@ export function useEditorCanvasInteractions({
       initialPositions,
       pointerStartX: clientX,
       pointerStartY: clientY,
+      lastClientX: clientX,
+      lastClientY: clientY,
+      panOffsetX: 0,
+      panOffsetY: 0,
       moved: false
     }
 

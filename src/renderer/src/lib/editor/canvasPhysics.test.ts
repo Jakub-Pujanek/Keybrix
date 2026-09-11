@@ -450,3 +450,60 @@ describe('getNodeById', () => {
     expect(getNodeById([], 'n1')).toBeUndefined()
   })
 })
+
+describe('getSnapCandidate zoom scaling', () => {
+  // WAIT total height = 114 → snap target for parent at (0,0) is (0, 103).
+
+  it('keeps the snap window screen-constant at low zoom', () => {
+    const parent = buildNode('p', 'WAIT', 0, 0)
+    const child = buildNode('c', 'WAIT', 150, 103)
+    const nodes = [parent, child]
+
+    // 150 world px from target: outside the 84px window at zoom 1, inside at
+    // zoom 0.5 where the window is 84/0.5 = 168 world px.
+    expect(
+      getSnapCandidate({ nodes, nodeId: 'c', rawX: 150, rawY: 103, excludeIds: new Set() })
+    ).toBeNull()
+    expect(
+      getSnapCandidate({
+        nodes,
+        nodeId: 'c',
+        rawX: 150,
+        rawY: 103,
+        excludeIds: new Set(),
+        zoom: 0.5
+      })
+    ).toEqual({ parentId: 'p', snapX: 0, snapY: 103 })
+  })
+
+  it('shrinks the world-space window at high zoom, including via the spatial index', () => {
+    const parent = buildNode('p', 'WAIT', 0, 0)
+    const child = buildNode('c', 'WAIT', 60, 103)
+    const nodes = [parent, child]
+    const index = buildSnapSpatialIndex(nodes)
+
+    // 60 world px: inside the 84px window at zoom 1, outside the 42px window
+    // at zoom 2.
+    expect(
+      getSnapCandidate({
+        nodes,
+        nodeId: 'c',
+        rawX: 60,
+        rawY: 103,
+        excludeIds: new Set(),
+        spatialIndex: index
+      })
+    ).not.toBeNull()
+    expect(
+      getSnapCandidate({
+        nodes,
+        nodeId: 'c',
+        rawX: 60,
+        rawY: 103,
+        excludeIds: new Set(),
+        spatialIndex: index,
+        zoom: 2
+      })
+    ).toBeNull()
+  })
+})

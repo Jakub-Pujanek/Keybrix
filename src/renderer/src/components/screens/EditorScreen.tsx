@@ -269,6 +269,7 @@ function EditorScreen(): React.JSX.Element {
   const nodes = useEditorStore((state) => state.nodes)
   const nodeHeights = useEditorStore((state) => state.nodeHeights)
   const zoom = useEditorStore((state) => state.zoom)
+  const camera = useEditorStore((state) => state.camera)
   const activeMacroId = useEditorStore((state) => state.activeMacroId)
   const macroTitle = useEditorStore((state) => state.macroTitle)
   const shortcut = useEditorStore((state) => state.shortcut)
@@ -288,7 +289,11 @@ function EditorScreen(): React.JSX.Element {
   const removeNodeTree = useEditorStore((state) => state.removeNodeTree)
   const updateNodePayload = useEditorStore((state) => state.updateNodePayload)
   const clearNodes = useEditorStore((state) => state.clearNodes)
-  const setZoom = useEditorStore((state) => state.setZoom)
+  const restoreLastRemovedTree = useEditorStore((state) => state.restoreLastRemovedTree)
+  const setCamera = useEditorStore((state) => state.setCamera)
+  const setViewportSize = useEditorStore((state) => state.setViewportSize)
+  const setZoomAnchored = useEditorStore((state) => state.setZoomAnchored)
+  const panCameraBy = useEditorStore((state) => state.panCameraBy)
   const startShortcutRecording = useEditorStore((state) => state.startShortcutRecording)
   const cancelShortcutRecording = useEditorStore((state) => state.cancelShortcutRecording)
   const handleShortcutKeyDown = useEditorStore((state) => state.handleShortcutKeyDown)
@@ -343,6 +348,8 @@ function EditorScreen(): React.JSX.Element {
     nodes,
     nodeHeights,
     zoom,
+    canvasRef,
+    panCameraBy,
     setManyNodePositions,
     setNodeNext,
     clearIncomingConnection,
@@ -425,6 +432,22 @@ function EditorScreen(): React.JSX.Element {
   }, [deleteSelected])
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'z' && event.key !== 'Z') return
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey) return
+      if (isEditableEventTarget(event.target)) return
+
+      event.preventDefault()
+      restoreLastRemovedTree()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [restoreLastRemovedTree])
+
+  useEffect(() => {
     if (!isMousePickerActive) {
       return
     }
@@ -492,8 +515,11 @@ function EditorScreen(): React.JSX.Element {
             nodes={nodes}
             nodeHeights={nodeHeights}
             zoom={zoom}
+            camera={camera}
             canvasRef={canvasRef}
-            onZoomChange={setZoom}
+            onCameraChange={setCamera}
+            onZoomAnchored={setZoomAnchored}
+            onViewportResize={setViewportSize}
             onBlockPointerDown={handleBlockPointerDown}
             snapPreviewParentId={snapPreviewParentId}
             snapPreviewChildId={snapPreviewChildId}
@@ -534,9 +560,9 @@ function EditorScreen(): React.JSX.Element {
 
           <CanvasControls
             zoom={zoom}
-            onZoomIn={() => setZoom(zoom + 0.1)}
-            onZoomOut={() => setZoom(zoom - 0.1)}
-            onZoomChange={setZoom}
+            onZoomIn={() => setZoomAnchored(zoom * 1.25)}
+            onZoomOut={() => setZoomAnchored(zoom / 1.25)}
+            onZoomChange={(nextZoom) => setZoomAnchored(nextZoom)}
           />
         </div>
       </div>

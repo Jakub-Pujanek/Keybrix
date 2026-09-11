@@ -103,12 +103,17 @@ export const resolveNodePositions = (
   return positions
 }
 
-const getConnectionBounds = (targetX: number, targetY: number): ConnectionBounds => {
+const getConnectionBounds = (
+  targetX: number,
+  targetY: number,
+  thresholdX = SNAP_THRESHOLD_X,
+  thresholdY = SNAP_THRESHOLD_Y
+): ConnectionBounds => {
   return {
-    left: targetX - SNAP_THRESHOLD_X,
-    right: targetX + SNAP_THRESHOLD_X,
-    top: targetY - SNAP_THRESHOLD_Y,
-    bottom: targetY + SNAP_THRESHOLD_Y
+    left: targetX - thresholdX,
+    right: targetX + thresholdX,
+    top: targetY - thresholdY,
+    bottom: targetY + thresholdY
   }
 }
 
@@ -146,10 +151,12 @@ export const buildSnapSpatialIndex = (
 const getSpatialCandidates = (
   index: SnapSpatialIndex,
   rawX: number,
-  rawY: number
+  rawY: number,
+  thresholdX = SNAP_THRESHOLD_X,
+  thresholdY = SNAP_THRESHOLD_Y
 ): EditorNode[] => {
-  const rangeX = Math.ceil(SNAP_THRESHOLD_X / index.cellSize)
-  const rangeY = Math.ceil(SNAP_THRESHOLD_Y / index.cellSize)
+  const rangeX = Math.max(1, Math.ceil(thresholdX / index.cellSize))
+  const rangeY = Math.max(1, Math.ceil(thresholdY / index.cellSize))
   const centerCellX = Math.floor(rawX / index.cellSize)
   const centerCellY = Math.floor(rawY / index.cellSize)
 
@@ -211,6 +218,9 @@ export type SnapCandidateQuery = {
   spatialIndex?: SnapSpatialIndex
   loopCache?: Map<string, boolean>
   heights?: NodeHeightMap
+  // Canvas zoom — snap thresholds are screen-constant, so at zoom 0.5 the
+  // world-space window doubles and at zoom 2 it halves.
+  zoom?: number
 }
 
 export const getSnapCandidate = ({
@@ -221,13 +231,19 @@ export const getSnapCandidate = ({
   excludeIds,
   spatialIndex,
   loopCache,
-  heights
+  heights,
+  zoom = 1
 }: SnapCandidateQuery): SnapCandidate | null => {
   const draggedNode = getNodeById(nodes, nodeId)
   if (!draggedNode) return null
   if (draggedNode.type === 'START') return null
 
-  const candidates = spatialIndex ? getSpatialCandidates(spatialIndex, rawX, rawY) : nodes
+  const thresholdX = SNAP_THRESHOLD_X / zoom
+  const thresholdY = SNAP_THRESHOLD_Y / zoom
+
+  const candidates = spatialIndex
+    ? getSpatialCandidates(spatialIndex, rawX, rawY, thresholdX, thresholdY)
+    : nodes
   const positions = spatialIndex?.positions ?? resolveNodePositions(nodes, heights)
 
   let bestCandidate: SnapCandidate | null = null
@@ -239,7 +255,7 @@ export const getSnapCandidate = ({
 
     const targetX = positions.get(candidate.id)?.x ?? candidate.x
     const targetY = getConnectedChildY(candidate, heights, positions)
-    const bounds = getConnectionBounds(targetX, targetY)
+    const bounds = getConnectionBounds(targetX, targetY, thresholdX, thresholdY)
 
     if (rawX < bounds.left || rawX > bounds.right || rawY < bounds.top || rawY > bounds.bottom) {
       continue

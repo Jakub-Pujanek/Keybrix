@@ -128,7 +128,8 @@ export type EditorNode = z.infer<typeof EditorNodeSchema>
 
 export const EditorDocumentSchema = z.object({
   nodes: z.array(EditorNodeSchema),
-  zoom: z.number().min(0.5).max(2)
+  zoom: z.number().min(0.5).max(2),
+  camera: z.object({ x: z.number(), y: z.number() }).optional()
 })
 export type EditorDocument = z.infer<typeof EditorDocumentSchema>
 
@@ -141,7 +142,8 @@ export type RuntimeCommand = z.infer<typeof RuntimeCommandSchema>
 export const RuntimeMacroDocumentSchema = z.object({
   commands: z.array(RuntimeCommandSchema),
   nodes: z.array(EditorNodeSchema).optional(),
-  zoom: z.number().min(0.5).max(2).optional()
+  zoom: z.number().min(0.5).max(2).optional(),
+  camera: z.object({ x: z.number(), y: z.number() }).optional()
 })
 export type RuntimeMacroDocument = z.infer<typeof RuntimeMacroDocumentSchema>
 

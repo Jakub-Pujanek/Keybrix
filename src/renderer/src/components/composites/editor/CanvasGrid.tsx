@@ -1,13 +1,17 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { EditorBlockType, EditorNode } from '../../../../../shared/api'
 import { isRegisteredEditorBlockType } from '../../../../../shared/block-registry'
+import {
+  clampZoom,
+  WORLD_CENTER_X,
+  WORLD_CENTER_Y,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  type CameraPosition,
+  type ViewportSize
+} from '../../../lib/editor/canvasCamera'
 import { resolveNodePositions } from '../../../lib/editor/canvasPhysics'
 import ActionBlock from './ActionBlock'
-
-const WORLD_WIDTH = 6000
-const WORLD_HEIGHT = 4000
-const WORLD_CENTER_X = WORLD_WIDTH / 2
-const WORLD_CENTER_Y = WORLD_HEIGHT / 2
 
 type MeasuredBlockProps = {
   nodeId: string
@@ -63,8 +67,11 @@ type CanvasGridProps = {
   nodes: EditorNode[]
   nodeHeights: Record<string, number>
   zoom: number
+  camera: CameraPosition
   canvasRef: React.RefObject<HTMLDivElement | null>
-  onZoomChange: (nextZoom: number) => void
+  onCameraChange: (next: CameraPosition) => void
+  onZoomAnchored: (nextZoom: number, anchorScreen: CameraPosition) => void
+  onViewportResize: (size: ViewportSize) => void
   onBlockPointerDown: (nodeId: string, clientX: number, clientY: number) => void
   snapPreviewParentId: string | null
   snapPreviewChildId: string | null
@@ -89,8 +96,11 @@ function CanvasGrid({
   nodes,
   nodeHeights,
   zoom,
+  camera,
   canvasRef,
-  onZoomChange,
+  onCameraChange,
+  onZoomAnchored,
+  onViewportResize,
   onBlockPointerDown,
   snapPreviewParentId,
   snapPreviewChildId,
@@ -110,17 +120,22 @@ function CanvasGrid({
   onStopMousePicker,
   onMeasureNodeHeights
 }: CanvasGridProps): React.JSX.Element {
-  const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [isPanningCanvas, setIsPanningCanvas] = useState(false)
   const selectedNodeIdsSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds])
   const draggingNodeIds = useMemo(() => new Set(Object.keys(displayPositions)), [displayPositions])
   const activePanPointerIdRef = useRef<number | null>(null)
-  const hasInitializedCameraRef = useRef(false)
   const panStartRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(
     null
   )
   const measureCallbackRef = useRef(onMeasureNodeHeights)
   const blockObserverRef = useRef<ResizeObserver | null>(null)
+  const zoomRef = useRef(zoom)
+  const onCameraChangeRef = useRef(onCameraChange)
+  const onZoomAnchoredRef = useRef(onZoomAnchored)
+  const onViewportResizeRef = useRef(onViewportResize)
+  const pendingCameraRef = useRef<CameraPosition | null>(null)
+  const cameraFrameRef = useRef<number | null>(null)
+  const pendingZoomRef = useRef<{ zoom: number; anchor: CameraPosition } | null>(null)
 
   const resolvedPositions = useMemo(
     () => resolveNodePositions(nodes, nodeHeights),
@@ -131,7 +146,22 @@ function CanvasGrid({
     measureCallbackRef.current = onMeasureNodeHeights
   }, [onMeasureNodeHeights])
 
-  useEffect(() => () => blockObserverRef.current?.disconnect(), [])
+  useEffect(() => {
+    zoomRef.current = zoom
+    onCameraChangeRef.current = onCameraChange
+    onZoomAnchoredRef.current = onZoomAnchored
+    onViewportResizeRef.current = onViewportResize
+  }, [zoom, onCameraChange, onZoomAnchored, onViewportResize])
+
+  useEffect(
+    () => () => {
+      blockObserverRef.current?.disconnect()
+      if (cameraFrameRef.current !== null) {
+        window.cancelAnimationFrame(cameraFrameRef.current)
+      }
+    },
+    []
+  )
 
   const getBlockObserver = useCallback((): ResizeObserver | null => {
     if (typeof ResizeObserver === 'undefined') return null
@@ -164,44 +194,57 @@ function CanvasGrid({
     [onUpdatePayload]
   )
 
-  const clampCamera = useCallback(
-    (nextX: number, nextY: number, nextZoom: number): { x: number; y: number } => {
-      const viewport = canvasRef.current
-      if (!viewport) {
-        return {
-          x: Math.max(0, nextX),
-          y: Math.max(0, nextY)
-        }
-      }
+  // Camera and zoom updates are rAF-batched: hi-res wheels and pointermove
+  // can fire far above 60Hz, so only the latest pending value is applied per
+  // frame. The store performs the world-bounds clamping.
+  const scheduleCamera = useCallback((next: CameraPosition): void => {
+    pendingCameraRef.current = next
+    if (cameraFrameRef.current !== null) return
 
-      const visibleWidth = viewport.clientWidth
-      const visibleHeight = viewport.clientHeight
-      const maxX = Math.max(0, WORLD_WIDTH * nextZoom - visibleWidth)
-      const maxY = Math.max(0, WORLD_HEIGHT * nextZoom - visibleHeight)
+    cameraFrameRef.current = window.requestAnimationFrame(() => {
+      cameraFrameRef.current = null
+      const pending = pendingCameraRef.current
+      pendingCameraRef.current = null
+      if (pending) onCameraChangeRef.current(pending)
+    })
+  }, [])
 
-      return {
-        x: Math.min(Math.max(0, nextX), maxX),
-        y: Math.min(Math.max(0, nextY), maxY)
-      }
-    },
-    [canvasRef]
-  )
+  const scheduleZoom = useCallback((nextZoom: number, anchor: CameraPosition): void => {
+    pendingZoomRef.current = { zoom: nextZoom, anchor }
+    if (cameraFrameRef.current !== null) return
 
+    cameraFrameRef.current = window.requestAnimationFrame(() => {
+      cameraFrameRef.current = null
+      const pendingCamera = pendingCameraRef.current
+      pendingCameraRef.current = null
+      if (pendingCamera) onCameraChangeRef.current(pendingCamera)
+
+      const pending = pendingZoomRef.current
+      pendingZoomRef.current = null
+      if (pending) onZoomAnchoredRef.current(pending.zoom, pending.anchor)
+    })
+  }, [])
+
+  // The store centers the world on the first real viewport measurement and
+  // re-clamps the camera on every later resize.
   useEffect(() => {
-    if (hasInitializedCameraRef.current) return
-
     const viewport = canvasRef.current
     if (!viewport) return
 
-    hasInitializedCameraRef.current = true
-    setCamera(
-      clampCamera(
-        WORLD_CENTER_X * zoom - viewport.clientWidth / 2,
-        WORLD_CENTER_Y * zoom - viewport.clientHeight / 2,
-        zoom
-      )
-    )
-  }, [canvasRef, clampCamera, zoom])
+    const report = (): void => {
+      onViewportResizeRef.current({
+        width: viewport.clientWidth,
+        height: viewport.clientHeight
+      })
+    }
+
+    report()
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(report)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [canvasRef])
 
   const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
@@ -239,7 +282,7 @@ function CanvasGrid({
     const dy = event.clientY - panStart.y
 
     // Reverse axis for map-like navigation: dragging left reveals right side of world.
-    setCamera(clampCamera(panStart.cameraX - dx, panStart.cameraY - dy, zoom))
+    scheduleCamera({ x: panStart.cameraX - dx, y: panStart.cameraY - dy })
   }
 
   const finishCanvasPan = (): void => {
@@ -288,6 +331,8 @@ function CanvasGrid({
     }
   }, [isPanningCanvas])
 
+  // Reads everything through refs so the wheel listener attaches exactly once
+  // instead of being rebound on every camera/zoom change.
   const handleCanvasWheel = useCallback(
     (event: WheelEvent): void => {
       const viewport = canvasRef.current
@@ -302,23 +347,12 @@ function CanvasGrid({
       const pointerY = event.clientY - rect.top
 
       const scale = Math.exp(-event.deltaY * 0.0018)
-      const nextZoom = Math.min(2, Math.max(0.5, zoom * scale))
-      if (nextZoom === zoom) return
+      const nextZoom = clampZoom(zoomRef.current * scale)
+      if (nextZoom === zoomRef.current) return
 
-      const worldX = (pointerX + camera.x) / zoom
-      const worldY = (pointerY + camera.y) / zoom
-
-      const nextCamera = clampCamera(
-        worldX * nextZoom - pointerX,
-        worldY * nextZoom - pointerY,
-        nextZoom
-      )
-
-      setCamera(nextCamera)
-
-      onZoomChange(nextZoom)
+      scheduleZoom(nextZoom, { x: pointerX, y: pointerY })
     },
-    [camera.x, camera.y, canvasRef, clampCamera, onZoomChange, zoom]
+    [canvasRef, scheduleZoom]
   )
 
   useEffect(() => {
@@ -327,10 +361,14 @@ function CanvasGrid({
       return
     }
 
-    viewport.addEventListener('wheel', handleCanvasWheel, { passive: false })
+    const onWheel = (event: WheelEvent): void => {
+      handleCanvasWheel(event)
+    }
+
+    viewport.addEventListener('wheel', onWheel, { passive: false })
 
     return () => {
-      viewport.removeEventListener('wheel', handleCanvasWheel)
+      viewport.removeEventListener('wheel', onWheel)
     }
   }, [canvasRef, handleCanvasWheel])
 

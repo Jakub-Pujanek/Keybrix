@@ -248,4 +248,105 @@ describe('editor.store mouse picker', () => {
 
     expect(useEditorStore.getState().nodeHeights).toBe(before)
   })
+
+  it('centers the camera on the world on the first viewport measurement', () => {
+    useEditorStore.setState({
+      zoom: 1,
+      camera: { x: 0, y: 0 },
+      viewportSize: { width: 0, height: 0 }
+    })
+
+    useEditorStore.getState().setViewportSize({ width: 1000, height: 800 })
+
+    const state = useEditorStore.getState()
+    expect(state.viewportSize).toEqual({ width: 1000, height: 800 })
+    expect(state.camera).toEqual({ x: 2500, y: 1600 })
+  })
+
+  it('re-clamps the camera when the viewport grows beyond the world', () => {
+    useEditorStore.setState({ zoom: 1, viewportSize: { width: 0, height: 0 } })
+    useEditorStore.getState().setViewportSize({ width: 1000, height: 800 })
+
+    useEditorStore.getState().setViewportSize({ width: 10000, height: 800 })
+
+    // World is 6000px wide at zoom 1 → centered horizontally, clamped on y.
+    expect(useEditorStore.getState().camera).toEqual({ x: -2000, y: 1600 })
+  })
+
+  it('anchors control-driven zoom on the viewport center', () => {
+    useEditorStore.setState({ zoom: 1, viewportSize: { width: 0, height: 0 } })
+    useEditorStore.getState().setViewportSize({ width: 1000, height: 800 })
+
+    useEditorStore.getState().setZoomAnchored(2)
+
+    const state = useEditorStore.getState()
+    expect(state.zoom).toBe(2)
+    // The world point under the viewport center stays put: (3000, 2000).
+    expect((500 + state.camera.x) / 2).toBeCloseTo(3000)
+    expect((400 + state.camera.y) / 2).toBeCloseTo(2000)
+  })
+
+  it('panCameraBy clamps and returns only the applied delta', () => {
+    useEditorStore.setState({
+      zoom: 1,
+      viewportSize: { width: 1000, height: 800 },
+      camera: { x: 0, y: 0 }
+    })
+
+    const applied = useEditorStore.getState().panCameraBy(-500, 100)
+
+    expect(applied).toEqual({ x: 0, y: 100 })
+    expect(useEditorStore.getState().camera).toEqual({ x: 0, y: 100 })
+  })
+
+  it('restores a removed subtree with its incoming link and heights', () => {
+    useEditorStore.setState({
+      nodes: [
+        { id: 'p', type: 'WAIT', x: 0, y: 0, nextId: 'c', payload: {} },
+        { id: 'c', type: 'WAIT', x: 0, y: 103, nextId: 'g', payload: {} },
+        { id: 'g', type: 'WAIT', x: 0, y: 206, nextId: null, payload: {} }
+      ],
+      nodeHeights: { c: 150 },
+      removedTreeSnapshot: null
+    })
+
+    useEditorStore.getState().removeNodeTree('c')
+
+    let state = useEditorStore.getState()
+    expect(state.nodes.map((node) => node.id)).toEqual(['p'])
+    expect(state.nodes[0]?.nextId).toBeNull()
+
+    useEditorStore.getState().restoreLastRemovedTree()
+
+    state = useEditorStore.getState()
+    expect(state.nodes.map((node) => node.id).sort()).toEqual(['c', 'g', 'p'])
+    expect(state.nodes.find((node) => node.id === 'p')?.nextId).toBe('c')
+    expect(state.nodes.find((node) => node.id === 'c')?.nextId).toBe('g')
+    expect(state.nodeHeights['c']).toBe(150)
+    expect(state.removedTreeSnapshot).toBeNull()
+  })
+
+  it('restores nodes cleared via clearNodes', () => {
+    useEditorStore.setState({
+      nodes: [{ id: 'a', type: 'WAIT', x: 0, y: 0, nextId: null, payload: {} }],
+      nodeHeights: {},
+      removedTreeSnapshot: null
+    })
+
+    useEditorStore.getState().clearNodes()
+    expect(useEditorStore.getState().nodes).toEqual([])
+
+    useEditorStore.getState().restoreLastRemovedTree()
+    expect(useEditorStore.getState().nodes.map((node) => node.id)).toEqual(['a'])
+  })
+
+  it('generates unique node ids on rapid addNode calls', () => {
+    useEditorStore.setState({ nodes: [] })
+
+    useEditorStore.getState().addNode('WAIT')
+    useEditorStore.getState().addNode('WAIT')
+
+    const [first, second] = useEditorStore.getState().nodes
+    expect(first?.id).not.toBe(second?.id)
+  })
 })

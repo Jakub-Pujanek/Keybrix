@@ -9,8 +9,22 @@ import {
   type RecordShortcutResultReason
 } from '../../../shared/api'
 import { compileNodesToRuntimeCommands } from '../../../shared/macro-runtime'
+import {
+  centerCameraOnWorld,
+  clampCameraToViewport,
+  clampZoom,
+  zoomAnchoredCamera,
+  type CameraPosition,
+  type ViewportSize
+} from '../lib/editor/canvasCamera'
 
 type RecordingSource = 'topbar' | 'start-block' | 'press-key-block' | 'execute-shortcut-block'
+
+type RemovedTreeSnapshot = {
+  nodes: EditorNode[]
+  incomingLinks: Array<{ fromId: string; toId: string }>
+  nodeHeights: Record<string, number>
+}
 
 type ShortcutRecordingError = {
   reasonCode: Extract<RecordShortcutResultReason, 'UNSUPPORTED_FORMAT' | 'CONFLICT'>
@@ -22,6 +36,9 @@ type EditorState = {
   nodes: EditorNode[]
   nodeHeights: Record<string, number>
   zoom: number
+  camera: CameraPosition
+  viewportSize: ViewportSize
+  removedTreeSnapshot: RemovedTreeSnapshot | null
   activeMacroId: string | null
   macroTitle: string
   shortcut: string
@@ -46,7 +63,12 @@ type EditorState = {
   removeNodeTree: (rootId: string) => void
   updateNodePayload: (nodeId: string, nextPayload: Record<string, unknown>) => void
   clearNodes: () => void
+  restoreLastRemovedTree: () => void
   setZoom: (zoom: number) => void
+  setCamera: (next: CameraPosition) => void
+  setViewportSize: (size: ViewportSize) => void
+  setZoomAnchored: (nextZoom: number, anchorScreen?: CameraPosition) => void
+  panCameraBy: (dx: number, dy: number) => CameraPosition
   startShortcutRecording: (source: RecordingSource, nodeId?: string) => void
   cancelShortcutRecording: () => void
   clearShortcutRecordingError: () => void
@@ -251,6 +273,8 @@ const buildSafeEditorState = (): Pick<
   | 'nodes'
   | 'nodeHeights'
   | 'zoom'
+  | 'camera'
+  | 'removedTreeSnapshot'
   | 'activeMacroId'
   | 'macroTitle'
   | 'shortcut'
@@ -267,6 +291,8 @@ const buildSafeEditorState = (): Pick<
   nodes: cloneNodes(defaultNodes),
   nodeHeights: {},
   zoom: 1,
+  camera: { x: 0, y: 0 },
+  removedTreeSnapshot: null,
   activeMacroId: null,
   macroTitle: DEFAULT_EDITOR_TITLE,
   shortcut: DEFAULT_EDITOR_SHORTCUT,
@@ -429,6 +455,7 @@ const collectChainIds = (nodes: EditorNode[], rootId: string): Set<string> => {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...buildSafeEditorState(),
+  viewportSize: { width: 0, height: 0 },
 
   ensureActiveMacroInvariant: (availableMacroIds) => {
     const { activeMacroId } = get()
@@ -440,13 +467,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return
     }
 
-    set(buildSafeEditorState())
+    set({
+      ...buildSafeEditorState(),
+      camera: centerCameraOnWorld(1, get().viewportSize)
+    })
   },
 
   loadEditorMacro: async (macroId) => {
     const selected = macroId ? await window.api.macros.getById(macroId) : await firstMacro()
     if (!selected) {
-      set(buildSafeEditorState())
+      set({
+        ...buildSafeEditorState(),
+        camera: centerCameraOnWorld(1, get().viewportSize)
+      })
       return
     }
 
@@ -457,13 +490,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ? normalizeLoadedNodes(parsedNodes.data.nodes, formattedShortcut)
       : []
 
+    const nextZoom = parsedNodes.success ? parsedNodes.data.zoom : 1
+    const savedCamera = parsedNodes.success ? parsedNodes.data.camera : undefined
+
     set({
       activeMacroId: selected.id,
       macroTitle: selected.name,
       shortcut: formattedShortcut,
       nodes: loadedNodes,
       nodeHeights: {},
-      zoom: parsedNodes.success ? parsedNodes.data.zoom : 1
+      removedTreeSnapshot: null,
+      zoom: nextZoom,
+      camera: savedCamera
+        ? clampCameraToViewport(savedCamera, nextZoom, get().viewportSize)
+        : centerCameraOnWorld(nextZoom, get().viewportSize)
     })
   },
 
@@ -472,7 +512,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   addNode: (type, position) => {
-    const id = `node-${type.toLowerCase()}-${Date.now()}`
+    const id = `node-${type.toLowerCase()}-${globalThis.crypto.randomUUID()}`
     const nextNode = EditorNodeSchema.parse({
       id,
       type,
@@ -579,6 +619,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   removeNodeTree: (rootId) => {
     set((state) => {
       const chainIds = collectChainIds(state.nodes, rootId)
+      if (chainIds.size === 0) return {}
+
+      // Single-slot undo snapshot: the removed subtree, the links that fed
+      // into it, and its measured heights — enough to restore without touching
+      // edits made after the deletion.
+      const removedTreeSnapshot: RemovedTreeSnapshot = {
+        nodes: state.nodes.filter((node) => chainIds.has(node.id)),
+        incomingLinks: state.nodes
+          .filter((node) => !chainIds.has(node.id) && node.nextId && chainIds.has(node.nextId))
+          .map((node) => ({ fromId: node.id, toId: node.nextId as string })),
+        nodeHeights: Object.fromEntries(
+          [...chainIds]
+            .filter((id) => state.nodeHeights[id] !== undefined)
+            .map((id) => [id, state.nodeHeights[id]])
+        )
+      }
+
       const nodeHeights = { ...state.nodeHeights }
       for (const id of chainIds) {
         delete nodeHeights[id]
@@ -590,7 +647,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           .map((node) =>
             node.nextId && chainIds.has(node.nextId) ? { ...node, nextId: null } : node
           ),
-        nodeHeights
+        nodeHeights,
+        removedTreeSnapshot
       }
     })
   },
@@ -604,12 +662,93 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearNodes: () => {
-    set({ nodes: [], nodeHeights: {} })
+    set((state) => ({
+      nodes: [],
+      nodeHeights: {},
+      removedTreeSnapshot:
+        state.nodes.length > 0
+          ? { nodes: state.nodes, incomingLinks: [], nodeHeights: state.nodeHeights }
+          : state.removedTreeSnapshot
+    }))
+  },
+
+  restoreLastRemovedTree: () => {
+    set((state) => {
+      const snapshot = state.removedTreeSnapshot
+      if (!snapshot) return {}
+
+      const existingIds = new Set(state.nodes.map((node) => node.id))
+      const restoredNodes = snapshot.nodes.filter((node) => !existingIds.has(node.id))
+      const restoredIds = new Set(restoredNodes.map((node) => node.id))
+
+      return {
+        nodes: [
+          ...state.nodes.map((node) => {
+            const link = snapshot.incomingLinks.find(
+              (candidate) => candidate.fromId === node.id && restoredIds.has(candidate.toId)
+            )
+            return link ? { ...node, nextId: link.toId } : node
+          }),
+          ...restoredNodes
+        ],
+        nodeHeights: { ...state.nodeHeights, ...snapshot.nodeHeights },
+        removedTreeSnapshot: null
+      }
+    })
   },
 
   setZoom: (zoom) => {
-    const clamped = Math.min(2, Math.max(0.5, zoom))
-    set({ zoom: clamped })
+    set({ zoom: clampZoom(zoom) })
+  },
+
+  setCamera: (next) => {
+    set((state) => ({ camera: clampCameraToViewport(next, state.zoom, state.viewportSize) }))
+  },
+
+  setViewportSize: (size) => {
+    set((state) => ({
+      viewportSize: size,
+      // First real viewport measurement also centers the world; later resizes
+      // only re-clamp so the view never shows void beyond the world bounds.
+      camera:
+        state.viewportSize.width === 0
+          ? centerCameraOnWorld(state.zoom, size)
+          : clampCameraToViewport(state.camera, state.zoom, size)
+    }))
+  },
+
+  setZoomAnchored: (nextZoom, anchorScreen) => {
+    set((state) => {
+      const clampedZoom = clampZoom(nextZoom)
+      const anchor = anchorScreen ?? {
+        x: state.viewportSize.width / 2,
+        y: state.viewportSize.height / 2
+      }
+
+      return {
+        zoom: clampedZoom,
+        camera: zoomAnchoredCamera(
+          state.camera,
+          state.zoom,
+          clampedZoom,
+          anchor,
+          state.viewportSize
+        )
+      }
+    })
+  },
+
+  // Returns the camera delta actually applied after clamping, so callers can
+  // compensate (edge-pan shifts the dragged chain by the real delta only).
+  panCameraBy: (dx, dy) => {
+    const state = get()
+    const next = clampCameraToViewport(
+      { x: state.camera.x + dx, y: state.camera.y + dy },
+      state.zoom,
+      state.viewportSize
+    )
+    set({ camera: next })
+    return { x: next.x - state.camera.x, y: next.y - state.camera.y }
   },
 
   startShortcutRecording: (source, nodeId) => {
@@ -782,7 +921,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveMacroFromEditor: async () => {
-    const { activeMacroId, macroTitle, shortcut, nodes, zoom } = get()
+    const { activeMacroId, macroTitle, shortcut, nodes, zoom, camera } = get()
     const orderedNodes = orderNodesByConnections(nodes)
     const synchronizedNodes = orderedNodes.map((node) =>
       node.type === 'START'
@@ -804,7 +943,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       blocksJson: {
         commands,
         nodes: synchronizedNodes,
-        zoom
+        zoom,
+        camera
       }
     })
 
